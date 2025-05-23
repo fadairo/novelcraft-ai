@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "novelcraft-ai"
+version = "1.0.0"
+description = "AI-assisted novel writing application using Claude AI"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "NovelCraft Team", email = "support@novelcraft.ai"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Multimedia :: Graphics :: Editors",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "anthropic>=0.7.0",
+    "click>=8.0.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "python-docx>=0.8.11",
+    "markdown>=3.4.0",
+    "spacy>=3.4.0",
+    "textstat>=0.7.0",
+    "nltk>=3.8",
+    "tenacity>=8.0.0",
+    "rich>=13.0.0",
+    "aiofiles>=23.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+]
+
+[project.scripts]
+novelcraft = "novelcraft.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/novelcraft-ai"
+Documentation = "https://novelcraft-ai.readthedocs.io"
+Repository = "https://github.com/yourusername/novelcraft-ai"
+"Bug Tracker" = "https://github.com/yourusername/novelcraft-ai/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["novelcraft*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "C", "N", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=novelcraft --cov-report=html --cov-report=term-missing"
