@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+_glasshouse/
 glasshouse/
 generated/
 manuscripts/draft_*
