@@ -1,261 +1,86 @@
-"""
-Character management for novel writing.
-"""
+"""Character management for NovelCraft AI."""
 
-from typing import Dict, List, Optional, Any
+from enum import Enum
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 
 
 class CharacterRole(Enum):
-    """Enumeration of character roles in the story."""
+    """Character role in the story."""
     PROTAGONIST = "protagonist"
     ANTAGONIST = "antagonist"
     SUPPORTING = "supporting"
     MINOR = "minor"
-    BACKGROUND = "background"
 
 
 @dataclass
-class CharacterTrait:
-    """Represents a character trait or attribute."""
-    name: str
-    description: str
-    importance: int = 1  # 1-10 scale
-    
-    def __str__(self) -> str:
-        return f"{self.name}: {self.description}"
-
-
-@dataclass
-class CharacterRelationship:
-    """Represents a relationship between two characters."""
-    character_name: str
-    relationship_type: str
-    description: str
-    strength: int = 5  # 1-10 scale
-    
-    def __str__(self) -> str:
-        return f"{self.relationship_type} with {self.character_name}: {self.description}"
-
-
 class Character:
     """Represents a character in the novel."""
     
-    def __init__(
-        self,
-        name: str,
-        role: CharacterRole = CharacterRole.MINOR,
-        description: str = "",
-        age: Optional[int] = None,
-    ):
-        self.name = name
-        self.role = role
-        self.description = description
-        self.age = age
-        self.traits: List[CharacterTrait] = []
-        self.relationships: List[CharacterRelationship] = []
-        self.backstory: str = ""
-        self.goals: List[str] = []
-        self.fears: List[str] = []
-        self.secrets: List[str] = []
-        self.appearance: Dict[str, str] = {}
-        self.personality: Dict[str, str] = {}
-        self.speech_patterns: List[str] = []
-        self.first_appearance_chapter: Optional[int] = None
-        self.last_appearance_chapter: Optional[int] = None
-        self.chapter_appearances: List[int] = []
-        self.created_at = datetime.now()
-        self.modified_at = datetime.now()
+    name: str
+    age: int = 0
+    role: CharacterRole = CharacterRole.SUPPORTING
+    description: str = ""
+    backstory: str = ""
+    traits: List[str] = field(default_factory=list)
+    goals: List[str] = field(default_factory=list)
+    relationships: Dict[str, str] = field(default_factory=dict)
+    appearance: str = ""
+    personality: str = ""
+    motivation: str = ""
+    conflict: str = ""
+    arc: str = ""
+    notes: str = ""
+    created_at: datetime = field(default_factory=datetime.now)
     
-    def add_trait(self, name: str, description: str, importance: int = 1) -> None:
+    def add_trait(self, trait: str) -> None:
         """Add a character trait."""
-        trait = CharacterTrait(name, description, importance)
-        self.traits.append(trait)
-        self.modified_at = datetime.now()
+        if trait not in self.traits:
+            self.traits.append(trait)
     
-    def remove_trait(self, trait_name: str) -> bool:
-        """Remove a character trait by name."""
-        for i, trait in enumerate(self.traits):
-            if trait.name.lower() == trait_name.lower():
-                del self.traits[i]
-                self.modified_at = datetime.now()
-                return True
-        return False
+    def remove_trait(self, trait: str) -> None:
+        """Remove a character trait."""
+        if trait in self.traits:
+            self.traits.remove(trait)
     
-    def add_relationship(
-        self, 
-        character_name: str, 
-        relationship_type: str, 
-        description: str,
-        strength: int = 5
-    ) -> None:
+    def add_goal(self, goal: str) -> None:
+        """Add a character goal."""
+        if goal not in self.goals:
+            self.goals.append(goal)
+    
+    def remove_goal(self, goal: str) -> None:
+        """Remove a character goal."""
+        if goal in self.goals:
+            self.goals.remove(goal)
+    
+    def add_relationship(self, character_name: str, relationship: str) -> None:
         """Add a relationship with another character."""
-        relationship = CharacterRelationship(
-            character_name, relationship_type, description, strength
-        )
-        self.relationships.append(relationship)
-        self.modified_at = datetime.now()
+        self.relationships[character_name] = relationship
     
-    def get_relationships_by_type(self, relationship_type: str) -> List[CharacterRelationship]:
-        """Get all relationships of a specific type."""
-        return [
-            rel for rel in self.relationships 
-            if rel.relationship_type.lower() == relationship_type.lower()
-        ]
-    
-    def add_appearance(self, chapter: int) -> None:
-        """Record character appearance in a chapter."""
-        if chapter not in self.chapter_appearances:
-            self.chapter_appearances.append(chapter)
-            self.chapter_appearances.sort()
-            
-            if self.first_appearance_chapter is None or chapter < self.first_appearance_chapter:
-                self.first_appearance_chapter = chapter
-            
-            if self.last_appearance_chapter is None or chapter > self.last_appearance_chapter:
-                self.last_appearance_chapter = chapter
-            
-            self.modified_at = datetime.now()
-    
-    def appears_in_chapter(self, chapter: int) -> bool:
-        """Check if character appears in a specific chapter."""
-        return chapter in self.chapter_appearances
-    
-    def get_major_traits(self, min_importance: int = 7) -> List[CharacterTrait]:
-        """Get traits with importance above threshold."""
-        return [trait for trait in self.traits if trait.importance >= min_importance]
-    
-    def get_character_arc_summary(self) -> str:
-        """Generate a summary of the character's arc."""
-        arc_parts = []
-        
-        if self.first_appearance_chapter and self.last_appearance_chapter:
-            arc_parts.append(
-                f"Appears from Chapter {self.first_appearance_chapter} "
-                f"to Chapter {self.last_appearance_chapter}"
-            )
-        
-        if self.goals:
-            arc_parts.append(f"Goals: {', '.join(self.goals)}")
-        
-        if self.fears:
-            arc_parts.append(f"Fears: {', '.join(self.fears)}")
-        
-        major_traits = self.get_major_traits()
-        if major_traits:
-            trait_names = [trait.name for trait in major_traits]
-            arc_parts.append(f"Key traits: {', '.join(trait_names)}")
-        
-        return " | ".join(arc_parts) if arc_parts else "No arc information available"
-    
-    def set_appearance(self, feature: str, description: str) -> None:
-        """Set a physical appearance feature."""
-        self.appearance[feature] = description
-        self.modified_at = datetime.now()
-    
-    def set_personality(self, aspect: str, description: str) -> None:
-        """Set a personality aspect."""
-        self.personality[aspect] = description
-        self.modified_at = datetime.now()
-    
-    def add_speech_pattern(self, pattern: str) -> None:
-        """Add a speech pattern or verbal tic."""
-        if pattern not in self.speech_patterns:
-            self.speech_patterns.append(pattern)
-            self.modified_at = datetime.now()
-    
-    def get_full_profile(self) -> str:
-        """Get a complete character profile as text."""
-        profile_lines = [
-            f"Character: {self.name}",
-            f"Role: {self.role.value}",
-            f"Age: {self.age if self.age else 'Unknown'}",
-            "",
-            f"Description: {self.description}",
-            "",
-        ]
-        
-        if self.backstory:
-            profile_lines.extend(["Backstory:", self.backstory, ""])
-        
-        if self.traits:
-            profile_lines.append("Traits:")
-            for trait in self.traits:
-                profile_lines.append(f"  - {trait}")
-            profile_lines.append("")
-        
-        if self.goals:
-            profile_lines.append("Goals:")
-            for goal in self.goals:
-                profile_lines.append(f"  - {goal}")
-            profile_lines.append("")
-        
-        if self.fears:
-            profile_lines.append("Fears:")
-            for fear in self.fears:
-                profile_lines.append(f"  - {fear}")
-            profile_lines.append("")
-        
-        if self.relationships:
-            profile_lines.append("Relationships:")
-            for rel in self.relationships:
-                profile_lines.append(f"  - {rel}")
-            profile_lines.append("")
-        
-        if self.appearance:
-            profile_lines.append("Appearance:")
-            for feature, desc in self.appearance.items():
-                profile_lines.append(f"  - {feature}: {desc}")
-            profile_lines.append("")
-        
-        if self.speech_patterns:
-            profile_lines.append("Speech Patterns:")
-            for pattern in self.speech_patterns:
-                profile_lines.append(f"  - {pattern}")
-            profile_lines.append("")
-        
-        profile_lines.append(self.get_character_arc_summary())
-        
-        return "\n".join(profile_lines)
+    def remove_relationship(self, character_name: str) -> None:
+        """Remove a relationship with another character."""
+        if character_name in self.relationships:
+            del self.relationships[character_name]
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert character to dictionary for serialization."""
         return {
             "name": self.name,
+            "age": self.age,
             "role": self.role.value,
             "description": self.description,
-            "age": self.age,
-            "traits": [
-                {
-                    "name": trait.name,
-                    "description": trait.description,
-                    "importance": trait.importance,
-                }
-                for trait in self.traits
-            ],
-            "relationships": [
-                {
-                    "character_name": rel.character_name,
-                    "relationship_type": rel.relationship_type,
-                    "description": rel.description,
-                    "strength": rel.strength,
-                }
-                for rel in self.relationships
-            ],
             "backstory": self.backstory,
+            "traits": self.traits,
             "goals": self.goals,
-            "fears": self.fears,
-            "secrets": self.secrets,
+            "relationships": self.relationships,
             "appearance": self.appearance,
             "personality": self.personality,
-            "speech_patterns": self.speech_patterns,
-            "first_appearance_chapter": self.first_appearance_chapter,
-            "last_appearance_chapter": self.last_appearance_chapter,
-            "chapter_appearances": self.chapter_appearances,
+            "motivation": self.motivation,
+            "conflict": self.conflict,
+            "arc": self.arc,
+            "notes": self.notes,
             "created_at": self.created_at.isoformat(),
-            "modified_at": self.modified_at.isoformat(),
         }
     
     @classmethod
@@ -263,131 +88,222 @@ class Character:
         """Create character from dictionary."""
         character = cls(
             name=data["name"],
-            role=CharacterRole(data.get("role", "minor")),
+            age=data.get("age", 0),
+            role=CharacterRole(data.get("role", "supporting")),
             description=data.get("description", ""),
-            age=data.get("age"),
+            backstory=data.get("backstory", ""),
+            traits=data.get("traits", []),
+            goals=data.get("goals", []),
+            relationships=data.get("relationships", {}),
+            appearance=data.get("appearance", ""),
+            personality=data.get("personality", ""),
+            motivation=data.get("motivation", ""),
+            conflict=data.get("conflict", ""),
+            arc=data.get("arc", ""),
+            notes=data.get("notes", ""),
         )
-        
-        # Load traits
-        for trait_data in data.get("traits", []):
-            character.add_trait(
-                trait_data["name"],
-                trait_data["description"],
-                trait_data.get("importance", 1),
-            )
-        
-        # Load relationships
-        for rel_data in data.get("relationships", []):
-            character.add_relationship(
-                rel_data["character_name"],
-                rel_data["relationship_type"],
-                rel_data["description"],
-                rel_data.get("strength", 5),
-            )
-        
-        # Load other attributes
-        character.backstory = data.get("backstory", "")
-        character.goals = data.get("goals", [])
-        character.fears = data.get("fears", [])
-        character.secrets = data.get("secrets", [])
-        character.appearance = data.get("appearance", {})
-        character.personality = data.get("personality", {})
-        character.speech_patterns = data.get("speech_patterns", [])
-        character.first_appearance_chapter = data.get("first_appearance_chapter")
-        character.last_appearance_chapter = data.get("last_appearance_chapter")
-        character.chapter_appearances = data.get("chapter_appearances", [])
         
         if "created_at" in data:
             character.created_at = datetime.fromisoformat(data["created_at"])
-        if "modified_at" in data:
-            character.modified_at = datetime.fromisoformat(data["modified_at"])
         
         return character
+    
+    def __str__(self) -> str:
+        """String representation of character."""
+        return f"{self.name} ({self.role.value}, age {self.age})"
 
 
 class CharacterManager:
-    """Manages all characters in a novel project."""
+    """Manages all characters in a project."""
     
     def __init__(self):
         self.characters: Dict[str, Character] = {}
     
     def add_character(self, character: Character) -> None:
         """Add a character to the manager."""
-        self.characters[character.name.lower()] = character
+        self.characters[character.name] = character
+    
+    def remove_character(self, name: str) -> None:
+        """Remove a character by name."""
+        if name in self.characters:
+            del self.characters[name]
     
     def get_character(self, name: str) -> Optional[Character]:
-        """Get a character by name (case insensitive)."""
-        return self.characters.get(name.lower())
+        """Get a character by name."""
+        return self.characters.get(name)
     
-    def remove_character(self, name: str) -> bool:
-        """Remove a character by name."""
-        key = name.lower()
-        if key in self.characters:
-            del self.characters[key]
-            return True
-        return False
-    
-    def get_all_characters(self) -> List[Character]:
-        """Get all characters."""
+    def list_characters(self) -> List[Character]:
+        """Get all characters as a list."""
         return list(self.characters.values())
     
     def get_characters_by_role(self, role: CharacterRole) -> List[Character]:
-        """Get all characters with a specific role."""
+        """Get characters by their role."""
         return [char for char in self.characters.values() if char.role == role]
     
-    def get_characters_in_chapter(self, chapter: int) -> List[Character]:
-        """Get all characters that appear in a specific chapter."""
-        return [
-            char for char in self.characters.values() 
-            if char.appears_in_chapter(chapter)
-        ]
+    def get_protagonists(self) -> List[Character]:
+        """Get all protagonist characters."""
+        return self.get_characters_by_role(CharacterRole.PROTAGONIST)
     
-    def find_character_conflicts(self) -> List[str]:
-        """Find potential character conflicts or inconsistencies."""
-        conflicts = []
-        
-        # Check for duplicate names
-        names = [char.name for char in self.characters.values()]
-        duplicates = set([name for name in names if names.count(name) > 1])
-        if duplicates:
-            conflicts.append(f"Duplicate character names: {', '.join(duplicates)}")
-        
-        # Check for conflicting relationships
-        for char in self.characters.values():
-            for rel in char.relationships:
-                other_char = self.get_character(rel.character_name)
-                if other_char:
-                    # Check if the relationship is mutual
-                    reverse_rels = other_char.get_relationships_by_type(rel.relationship_type)
-                    if not any(r.character_name.lower() == char.name.lower() for r in reverse_rels):
-                        conflicts.append(
-                            f"One-way relationship between {char.name} and {rel.character_name}"
-                        )
-        
-        return conflicts
+    def get_antagonists(self) -> List[Character]:
+        """Get all antagonist characters."""
+        return self.get_characters_by_role(CharacterRole.ANTAGONIST)
     
-    def generate_character_network(self) -> Dict[str, List[str]]:
-        """Generate a network of character relationships."""
-        network = {}
-        for char in self.characters.values():
-            connections = [rel.character_name for rel in char.relationships]
-            network[char.name] = connections
-        return network
+    def search_characters(self, query: str) -> List[Character]:
+        """Search characters by name, description, or traits."""
+        query_lower = query.lower()
+        results = []
+        
+        for character in self.characters.values():
+            if (query_lower in character.name.lower() or
+                query_lower in character.description.lower() or
+                any(query_lower in trait.lower() for trait in character.traits) or
+                query_lower in character.backstory.lower()):
+                results.append(character)
+        
+        return results
+    
+    def get_character_relationships(self, character_name: str) -> Dict[str, str]:
+        """Get all relationships for a specific character."""
+        character = self.get_character(character_name)
+        if character:
+            return character.relationships
+        return {}
+    
+    def add_relationship(self, char1_name: str, char2_name: str, relationship: str) -> None:
+        """Add a bidirectional relationship between two characters."""
+        char1 = self.get_character(char1_name)
+        char2 = self.get_character(char2_name)
+        
+        if char1 and char2:
+            char1.add_relationship(char2_name, relationship)
+            # You might want to add the reverse relationship too
+            # char2.add_relationship(char1_name, f"related to {char1_name}")
+    
+    def generate_character_summary(self) -> str:
+        """Generate a summary of all characters for AI context."""
+        if not self.characters:
+            return "No characters defined in this project."
+        
+        summary = "CHARACTER INFORMATION:\n\n"
+        
+        for role in CharacterRole:
+            chars = self.get_characters_by_role(role)
+            if chars:
+                summary += f"{role.value.title()} Characters:\n"
+                for char in chars:
+                    summary += f"• {char.name}"
+                    if char.age:
+                        summary += f" (age {char.age})"
+                    if char.description:
+                        summary += f": {char.description}"
+                    summary += "\n"
+                    
+                    if char.traits:
+                        summary += f"  Traits: {', '.join(char.traits)}\n"
+                    if char.goals:
+                        summary += f"  Goals: {', '.join(char.goals)}\n"
+                    if char.backstory:
+                        summary += f"  Background: {char.backstory[:200]}{'...' if len(char.backstory) > 200 else ''}\n"
+                    summary += "\n"
+                summary += "\n"
+        
+        return summary.strip()
     
     def to_dict(self) -> Dict[str, Any]:
-        """Convert character manager to dictionary."""
+        """Convert character manager to dictionary for serialization."""
         return {
-            "characters": {
-                name: char.to_dict() 
-                for name, char in self.characters.items()
-            }
+            "characters": {name: char.to_dict() for name, char in self.characters.items()}
         }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "CharacterManager":
         """Create character manager from dictionary."""
         manager = cls()
-        for char_data in data.get("characters", {}).values():
-            character = Character.from_dict(char_data)
-            manager.add_character(character)
+        
+        if "characters" in data:
+            for name, char_data in data["characters"].items():
+                character = Character.from_dict(char_data)
+                manager.add_character(character)
+        
         return manager
+
+
+@dataclass
+class CharacterSheet:
+    """Detailed character sheet for in-depth character development."""
+    
+    character: Character
+    
+    # Physical characteristics
+    height: str = ""
+    weight: str = ""
+    hair_color: str = ""
+    eye_color: str = ""
+    distinguishing_marks: str = ""
+    
+    # Background
+    birthplace: str = ""
+    family: str = ""
+    education: str = ""
+    occupation: str = ""
+    social_class: str = ""
+    
+    # Psychological profile
+    strengths: List[str] = field(default_factory=list)
+    weaknesses: List[str] = field(default_factory=list)
+    fears: List[str] = field(default_factory=list)
+    secrets: List[str] = field(default_factory=list)
+    
+    # Story elements
+    introduction_scene: str = ""
+    character_voice: str = ""
+    dialogue_style: str = ""
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert character sheet to dictionary."""
+        return {
+            "character": self.character.to_dict(),
+            "height": self.height,
+            "weight": self.weight,
+            "hair_color": self.hair_color,
+            "eye_color": self.eye_color,
+            "distinguishing_marks": self.distinguishing_marks,
+            "birthplace": self.birthplace,
+            "family": self.family,
+            "education": self.education,
+            "occupation": self.occupation,
+            "social_class": self.social_class,
+            "strengths": self.strengths,
+            "weaknesses": self.weaknesses,
+            "fears": self.fears,
+            "secrets": self.secrets,
+            "introduction_scene": self.introduction_scene,
+            "character_voice": self.character_voice,
+            "dialogue_style": self.dialogue_style,
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CharacterSheet":
+        """Create character sheet from dictionary."""
+        character = Character.from_dict(data["character"])
+        
+        return cls(
+            character=character,
+            height=data.get("height", ""),
+            weight=data.get("weight", ""),
+            hair_color=data.get("hair_color", ""),
+            eye_color=data.get("eye_color", ""),
+            distinguishing_marks=data.get("distinguishing_marks", ""),
+            birthplace=data.get("birthplace", ""),
+            family=data.get("family", ""),
+            education=data.get("education", ""),
+            occupation=data.get("occupation", ""),
+            social_class=data.get("social_class", ""),
+            strengths=data.get("strengths", []),
+            weaknesses=data.get("weaknesses", []),
+            fears=data.get("fears", []),
+            secrets=data.get("secrets", []),
+            introduction_scene=data.get("introduction_scene", ""),
+            character_voice=data.get("character_voice", ""),
+            dialogue_style=data.get("dialogue_style", ""),
+        )

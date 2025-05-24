@@ -1,88 +1,38 @@
-"""
-Claude AI client for content generation.
-"""
+"""Claude AI client for NovelCraft AI."""
 
-import asyncio
 import os
-from typing import Optional, Dict, Any, List
+import asyncio
+from typing import Dict, List, Optional, Any
 import anthropic
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
-import logging
-
-logger = logging.getLogger(__name__)
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 class ClaudeClient:
     """Client for interacting with Claude AI API."""
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "claude-3-sonnet-20240229"):
-        """Initialize Claude client.
-        
-        Args:
-            api_key: Anthropic API key. If None, will try to get from environment.
-            model: Model to use for generation.
-        """
+    def __init__(self, api_key: Optional[str] = None):
+        """Initialize Claude client."""
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
-            raise ValueError("Anthropic API key is required. Set ANTHROPIC_API_KEY environment variable.")
+            raise ValueError("ANTHROPIC_API_KEY environment variable or api_key parameter is required")
         
-        self.model = model
         self.client = anthropic.Anthropic(api_key=self.api_key)
+        self.model = "claude-3-sonnet-20240229"  # Default model
         self.max_tokens = 4000
-        self.temperature = 0.7
     
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=4, max=10),
-        retry=retry_if_exception_type((anthropic.RateLimitError, anthropic.APITimeoutError))
-    )
-    async def generate_content(
-        self,
-        prompt: str,
-        system_prompt: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-    ) -> str:
-        """Generate content using Claude API.
-        
-        Args:
-            prompt: The main prompt for content generation.
-            system_prompt: System prompt to set context and behavior.
-            max_tokens: Maximum tokens to generate.
-            temperature: Temperature for generation (0.0 to 1.0).
-            
-        Returns:
-            Generated content as string.
-        """
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
+    async def _make_request(self, messages: List[Dict[str, str]], system: str = "") -> str:
+        """Make a request to Claude API with retry logic."""
         try:
-            messages = [{"role": "user", "content": prompt}]
-            
-            kwargs = {
-                "model": self.model,
-                "max_tokens": max_tokens or self.max_tokens,
-                "temperature": temperature or self.temperature,
-                "messages": messages,
-            }
-            
-            if system_prompt:
-                kwargs["system"] = system_prompt
-            
-            # Run in thread pool to avoid blocking
-            loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None, lambda: self.client.messages.create(**kwargs)
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=self.max_tokens,
+                system=system,
+                messages=messages
             )
-            
             return response.content[0].text
-            
-        except anthropic.RateLimitError as e:
-            logger.warning(f"Rate limit hit: {e}")
-            raise
-        except anthropic.APITimeoutError as e:
-            logger.warning(f"API timeout: {e}")
-            raise
         except Exception as e:
-            logger.error(f"Error generating content: {e}")
+            print(f"API request failed: {e}")
             raise
     
     async def generate_chapter(
@@ -92,156 +42,185 @@ class ClaudeClient:
         outline: str,
         synopsis: str,
         character_info: str,
-        existing_chapters: Dict[int, str],
-        style_guide: Optional[str] = None,
+        existing_chapters: Dict[int, str] = None,
         word_count_target: int = 2000,
+        style_notes: str = "",
     ) -> str:
-        """Generate a complete chapter.
+        """Generate a chapter using Claude with normalized title format."""
+        from ..core.document import normalize_chapter_title
         
-        Args:
-            chapter_number: Number of the chapter to generate.
-            chapter_title: Title of the chapter.
-            outline: Chapter outline or summary.
-            synopsis: Overall story synopsis.
-            character_info: Information about characters.
-            existing_chapters: Previously written chapters for context.
-            style_guide: Author's style guide.
-            word_count_target: Target word count for the chapter.
-            
-        Returns:
-            Generated chapter content.
-        """
-        system_prompt = f"""You are a skilled novelist helping to write a chapter of a novel. 
-Your task is to write engaging, well-structured prose that matches the author's style and maintains consistency with the existing story.
-
-Key guidelines:
-- Write in a natural, engaging narrative style
-- Maintain character consistency
-- Follow the provided outline closely
-- Target approximately {word_count_target} words
-- Use proper chapter formatting
-- Avoid clichés and overused phrases
-- Show don't tell when possible
-- Create vivid scenes and dialogue
-"""
+        existing_chapters = existing_chapters or {}
         
-        if style_guide:
-            system_prompt += f"\n\nAuthor's Style Guide:\n{style_guide}"
+        # Ensure the chapter title is normalized
+        normalized_title = normalize_chapter_title(chapter_title)
         
         # Build context from existing chapters
-        context_parts = []
+        context = ""
         if existing_chapters:
-            context_parts.append("EXISTING CHAPTERS FOR CONTEXT:")
+            context = "\n\nPrevious chapters for context:\n"
             for ch_num in sorted(existing_chapters.keys()):
-                if ch_num < chapter_number:  # Only include previous chapters
-                    context_parts.append(f"Chapter {ch_num} Summary:")
-                    # Include first 500 chars as context
-                    content = existing_chapters[ch_num]
-                    summary = content[:500] + "..." if len(content) > 500 else content
-                    context_parts.append(summary)
-                    context_parts.append("")
+                if ch_num < chapter_number:
+                    context += f"\n--- Chapter {ch_num} ---\n{existing_chapters[ch_num][:1000]}...\n"
         
-        context_text = "\n".join(context_parts) if context_parts else ""
-        
-        prompt = f"""Please write Chapter {chapter_number}: {chapter_title}
+        system_prompt = f"""You are a professional novelist writing {normalized_title} of a novel.
 
-STORY SYNOPSIS:
-{synopsis}
-
-CHAPTER OUTLINE:
-{outline}
+NOVEL INFORMATION:
+- Synopsis: {synopsis}
+- Chapter Title: {normalized_title}
+- Target word count: {word_count_target} words
 
 CHARACTER INFORMATION:
 {character_info}
 
-{context_text}
+OUTLINE/PLOT POINTS:
+{outline}
 
-Write the complete chapter now, ensuring it flows naturally from the previous chapters and advances the story according to the outline. Focus on compelling narrative, realistic dialogue, and vivid descriptions."""
+STYLE NOTES:
+{style_notes}
+
+CONTEXT:
+{context}
+
+Write {normalized_title} following the outline and maintaining consistency with previous chapters. 
+Focus on:
+- Character development and authentic dialogue
+- Advancing the plot according to the outline
+- Maintaining the established tone and style
+- Creating engaging scenes with proper pacing
+- Reaching approximately {word_count_target} words
+
+IMPORTANT: Use the exact chapter title format "{normalized_title}" at the beginning of your response.
+Write the chapter content directly without any meta-commentary."""
         
-        return await self.generate_content(prompt, system_prompt)
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please write {normalized_title}"
+            }
+        ]
+        
+        return await self._make_request(messages, system_prompt)
     
-    async def generate_scene(
+    async def generate_character_description(
         self,
-        scene_description: str,
-        characters: List[str],
-        setting: str,
-        purpose: str,
-        style_context: str,
-        word_count_target: int = 800,
+        character_name: str,
+        role: str,
+        basic_info: str,
+        story_context: str = "",
     ) -> str:
-        """Generate a specific scene.
+        """Generate detailed character description."""
+        system_prompt = f"""You are a character development expert helping to flesh out a character for a novel.
+
+CHARACTER BASICS:
+- Name: {character_name}
+- Role: {role}
+- Basic info: {basic_info}
+
+STORY CONTEXT:
+{story_context}
+
+Create a detailed character profile including:
+- Physical appearance
+- Personality traits
+- Background/backstory
+- Motivations and goals
+- Conflicts and challenges
+- Character voice/speaking style
+- Relationships with other characters
+
+Make the character feel real, complex, and three-dimensional."""
         
-        Args:
-            scene_description: Description of what happens in the scene.
-            characters: List of characters in the scene.
-            setting: Where the scene takes place.
-            purpose: What the scene accomplishes for the story.
-            style_context: Style information from existing text.
-            word_count_target: Target word count.
-            
-        Returns:
-            Generated scene content.
-        """
-        system_prompt = f"""You are writing a scene for a novel. Create engaging, well-written prose that serves the story.
-
-Guidelines:
-- Target approximately {word_count_target} words
-- Write in the established style
-- Focus on character development and story advancement
-- Use vivid descriptions and realistic dialogue
-- Maintain appropriate pacing
-- Show emotions and motivations through actions and dialogue
-"""
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please create a detailed character profile for {character_name}."
+            }
+        ]
         
-        prompt = f"""Write a scene with the following specifications:
-
-SCENE DESCRIPTION: {scene_description}
-
-CHARACTERS PRESENT: {', '.join(characters)}
-
-SETTING: {setting}
-
-SCENE PURPOSE: {purpose}
-
-STYLE CONTEXT (match this writing style):
-{style_context}
-
-Write the complete scene now."""
-        
-        return await self.generate_content(prompt, system_prompt)
+        return await self._make_request(messages, system_prompt)
     
-    async def edit_content(
+    async def generate_chapter_outline(
         self,
-        content: str,
-        editing_instructions: str,
+        chapter_number: int,
+        story_synopsis: str,
+        character_info: str,
+        previous_events: str = "",
+        target_word_count: int = 2000,
+    ) -> str:
+        """Generate an outline for a specific chapter."""
+        system_prompt = f"""You are a story structure expert creating a detailed outline for Chapter {chapter_number}.
+
+STORY SYNOPSIS:
+{story_synopsis}
+
+CHARACTER INFORMATION:
+{character_info}
+
+PREVIOUS EVENTS:
+{previous_events}
+
+TARGET WORD COUNT: {target_word_count} words
+
+Create a detailed chapter outline that includes:
+- Opening scene setup
+- Key plot points and story beats
+- Character interactions and dialogue opportunities
+- Conflict and tension moments
+- Chapter ending/transition to next chapter
+- Pacing notes
+
+Structure the outline with clear beats that can guide the actual writing."""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please create a detailed outline for Chapter {chapter_number}."
+            }
+        ]
+        
+        return await self._make_request(messages, system_prompt)
+    
+    async def analyze_style(self, text_sample: str) -> Dict[str, Any]:
+        """Analyze the writing style of a text sample."""
+        system_prompt = """You are a writing style analyst. Analyze the given text and provide insights about:
+
+- Sentence structure and length patterns
+- Vocabulary level and word choice
+- Tone and voice
+- Point of view
+- Dialogue style
+- Pacing and rhythm
+- Literary devices used
+- Overall writing style characteristics
+
+Provide specific examples and actionable insights for maintaining consistency."""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please analyze the writing style of this text:\n\n{text_sample}"
+            }
+        ]
+        
+        response = await self._make_request(messages, system_prompt)
+        
+        # Parse response into structured format (simplified)
+        return {
+            "analysis": response,
+            "sentence_length": "varies",  # Could implement actual analysis
+            "vocabulary_level": "intermediate",
+            "tone": "narrative",
+            "pov": "third_person",
+        }
+    
+    async def check_consistency(
+        self,
+        manuscript: str,
         character_info: str,
         story_context: str,
-    ) -> str:
-        """Edit existing content based on instructions.
-        
-        Args:
-            content: The content to edit.
-            editing_instructions: Specific editing instructions.
-            character_info: Character information for consistency.
-            story_context: Story context for continuity.
-            
-        Returns:
-            Edited content.
-        """
-        system_prompt = """You are a professional editor working on a novel. Your job is to improve the provided text according to the given instructions while maintaining the author's voice and story consistency.
-
-Focus on:
-- Improving clarity and flow
-- Maintaining character consistency
-- Ensuring story continuity
-- Enhancing prose quality
-- Fixing any plot holes or inconsistencies
-"""
-        
-        prompt = f"""Please edit the following content according to the instructions:
-
-EDITING INSTRUCTIONS:
-{editing_instructions}
+    ) -> List[str]:
+        """Check manuscript for consistency issues."""
+        system_prompt = f"""You are an editor checking for consistency issues in a manuscript.
 
 CHARACTER INFORMATION:
 {character_info}
@@ -249,113 +228,448 @@ CHARACTER INFORMATION:
 STORY CONTEXT:
 {story_context}
 
-CONTENT TO EDIT:
-{content}
+Review the manuscript and identify any consistency issues such as:
+- Character name variations or typos
+- Character behavior inconsistencies
+- Timeline or continuity errors
+- Plot contradictions
+- Setting inconsistencies
 
-Provide the edited version."""
+Provide specific examples and suggestions for fixes."""
         
-        return await self.generate_content(prompt, system_prompt)
-    
-    async def analyze_style(self, text_sample: str) -> Dict[str, Any]:
-        """Analyze the writing style of a text sample.
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please check this manuscript for consistency issues:\n\n{manuscript[:4000]}..."
+            }
+        ]
         
-        Args:
-            text_sample: Sample text to analyze.
-            
-        Returns:
-            Style analysis as dictionary.
-        """
-        system_prompt = """You are a literary analyst. Analyze the writing style of the provided text and return a detailed breakdown of stylistic elements.
-
-Focus on:
-- Sentence structure and length
-- Vocabulary level and word choice
-- Tone and voice
-- Dialogue style
-- Narrative perspective
-- Pacing and rhythm
-- Use of literary devices
-"""
+        response = await self._make_request(messages, system_prompt)
         
-        prompt = f"""Analyze the writing style of this text sample:
-
-{text_sample}
-
-Provide a detailed analysis covering sentence structure, vocabulary, tone, dialogue style, and other notable stylistic elements. Format your response as clear categories with specific observations."""
-        
-        analysis_text = await self.generate_content(prompt, system_prompt)
-        
-        # Parse the analysis into structured format
-        # This is a simplified parser - in production you might want more sophisticated parsing
-        analysis = {
-            "raw_analysis": analysis_text,
-            "estimated_reading_level": "intermediate",  # Could be enhanced with actual analysis
-            "tone": "neutral",  # Could be enhanced with actual analysis
-            "style_notes": analysis_text.split('\n')[:5],  # First 5 lines as key points
-        }
-        
-        return analysis
-    
-    async def check_consistency(
-        self,
-        text: str,
-        character_profiles: str,
-        story_bible: str,
-    ) -> List[str]:
-        """Check text for consistency issues.
-        
-        Args:
-            text: Text to check.
-            character_profiles: Character information.
-            story_bible: Story world information.
-            
-        Returns:
-            List of potential consistency issues.
-        """
-        system_prompt = """You are a continuity editor checking for consistency issues in a novel. Identify any inconsistencies related to:
-
-- Character names, descriptions, or behavior
-- Timeline and chronology
-- World-building elements
-- Previously established facts
-- Character relationships
-
-Be specific about what inconsistencies you find and reference the source material."""
-        
-        prompt = f"""Check this text for consistency issues:
-
-CHARACTER PROFILES:
-{character_profiles}
-
-STORY BIBLE/CONTEXT:
-{story_bible}
-
-TEXT TO CHECK:
-{text}
-
-List any inconsistencies you find, being specific about the nature of each issue."""
-        
-        response = await self.generate_content(prompt, system_prompt)
-        
-        # Parse response into list of issues
+        # Parse response into list of issues (simplified)
         issues = []
         for line in response.split('\n'):
-            line = line.strip()
-            if line and (line.startswith('-') or line.startswith('•') or line[0].isdigit()):
-                issues.append(line)
+            if line.strip() and ('inconsistency' in line.lower() or 'error' in line.lower()):
+                issues.append(line.strip())
         
         return issues
     
-    def set_generation_parameters(
+    async def suggest_improvements(
         self,
-        max_tokens: int = 4000,
-        temperature: float = 0.7,
-    ) -> None:
-        """Set default generation parameters.
+        text: str,
+        focus_area: str = "general",
+    ) -> str:
+        """Suggest improvements for a piece of text."""
+        system_prompt = f"""You are a professional editor providing constructive feedback.
+
+FOCUS AREA: {focus_area}
+
+Analyze the text and provide specific, actionable suggestions for improvement in areas such as:
+- Character development
+- Dialogue quality
+- Pacing and flow
+- Descriptive language
+- Plot advancement
+- Clarity and readability
+
+Be specific and provide examples where possible."""
         
-        Args:
-            max_tokens: Maximum tokens to generate.
-            temperature: Temperature for generation.
-        """
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please suggest improvements for this text:\n\n{text}"
+            }
+        ]
+        
+        return await self._make_request(messages, system_prompt)
+    
+    async def expand_chapter(
+        self,
+        chapter_number: int,
+        chapter_title: str,
+        current_content: str,
+        expansion_notes: str,
+        target_words: int,
+        synopsis: str,
+        character_info: str,
+        outline: str,
+    ) -> str:
+        """Expand an existing chapter with additional content."""
+        
+        system_prompt = f"""You are a professional novelist expanding Chapter {chapter_number} of a novel.
+
+NOVEL INFORMATION:
+- Synopsis: {synopsis}
+- Chapter Title: {chapter_title}
+- Target expansion: {target_words} additional words
+
+CHARACTER INFORMATION:
+{character_info}
+
+OUTLINE CONTEXT:
+{outline}
+
+EXPANSION NOTES:
+{expansion_notes}
+
+CURRENT CHAPTER CONTENT:
+{current_content}
+
+Your task is to expand this chapter by adding approximately {target_words} words while:
+- Maintaining the existing narrative flow and style
+- Adding depth to character development or plot advancement
+- Incorporating the expansion notes if provided
+- Ensuring smooth integration with existing content
+- Maintaining consistency with the established tone
+
+Provide ONLY the expanded content that should be added, not the entire chapter."""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please expand Chapter {chapter_number} based on the provided content and notes."
+            }
+        ]
+        
+        return await self._make_request(messages, system_prompt)
+    
+    async def analyze_chapter(
+        self,
+        chapter_number: int,
+        chapter_title: str,
+        content: str,
+        focus_areas: List[str],
+        synopsis: str,
+        character_info: str,
+        existing_chapters: Dict[int, str],
+    ) -> Dict[str, Any]:
+        """Analyze a chapter and provide improvement suggestions."""
+        
+        context = ""
+        if existing_chapters:
+            context = "\n\nPREVIOUS CHAPTERS FOR CONTEXT:\n"
+            for ch_num in sorted(existing_chapters.keys()):
+                context += f"\n--- Chapter {ch_num} (excerpt) ---\n{existing_chapters[ch_num][:500]}...\n"
+        
+        focus_areas_str = ", ".join(focus_areas)
+        
+        system_prompt = f"""You are a professional editor analyzing Chapter {chapter_number} of a novel.
+
+NOVEL INFORMATION:
+- Synopsis: {synopsis}
+- Chapter Title: {chapter_title}
+
+CHARACTER INFORMATION:
+{character_info}
+
+FOCUS AREAS: {focus_areas_str}
+
+CONTEXT:
+{context}
+
+CHAPTER TO ANALYZE:
+{content}
+
+Provide a detailed analysis focusing on the specified areas. Structure your response as JSON with the following format:
+{{
+    "overall_assessment": "Brief overall assessment",
+    "strengths": ["strength1", "strength2", ...],
+    "areas_for_improvement": ["issue1", "issue2", ...],
+    "specific_suggestions": [
+        {{"area": "focus_area", "suggestion": "specific suggestion", "priority": "high/medium/low"}},
+        ...
+    ],
+    "continuity_issues": ["issue1", "issue2", ...],
+    "style_notes": "Style and voice observations"
+}}
+
+Be specific and actionable in your suggestions."""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please analyze Chapter {chapter_number} focusing on: {focus_areas_str}"
+            }
+        ]
+        
+        response = await self._make_request(messages, system_prompt)
+        
+        # Try to parse as JSON, fall back to structured text
+        try:
+            import json
+            return json.loads(response)
+        except:
+            return {
+                "overall_assessment": "Analysis completed",
+                "analysis_text": response,
+                "strengths": [],
+                "areas_for_improvement": [],
+                "specific_suggestions": [],
+                "continuity_issues": [],
+                "style_notes": ""
+            }
+    
+    async def generate_outline(
+        self,
+        chapter_start: int,
+        chapter_end: int,
+        plot_points: str,
+        synopsis: str,
+        character_info: str,
+        existing_outline: str,
+        existing_chapters: Dict[int, str],
+    ) -> str:
+        """Generate outline for a range of chapters."""
+        
+        context = ""
+        if existing_chapters:
+            context = "\n\nEXISTING CHAPTERS:\n"
+            for ch_num in sorted(existing_chapters.keys()):
+                context += f"\nChapter {ch_num}: {existing_chapters[ch_num][:300]}...\n"
+        
+        system_prompt = f"""You are a story development expert creating a detailed outline.
+
+NOVEL INFORMATION:
+- Synopsis: {synopsis}
+
+CHARACTER INFORMATION:
+{character_info}
+
+EXISTING OUTLINE:
+{existing_outline}
+
+PLOT POINTS TO INCORPORATE:
+{plot_points}
+
+CONTEXT:
+{context}
+
+Create a detailed outline for Chapters {chapter_start} through {chapter_end} that:
+- Builds logically on existing chapters
+- Incorporates the specified plot points
+- Advances character development
+- Maintains narrative momentum
+- Provides clear story beats for each chapter
+
+Format as:
+## Chapter X: [Title]
+- Plot points and key events
+- Character development focus
+- Scene structure
+- Transitions to next chapter"""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please create an outline for Chapters {chapter_start}-{chapter_end}."
+            }
+        ]
+        
+        return await self._make_request(messages, system_prompt)
+    
+    async def check_continuity(
+        self,
+        chapter_contents: Dict[int, str],
+        character_info: str,
+        synopsis: str,
+        outline: str,
+    ) -> Dict[str, Any]:
+        """Check continuity across multiple chapters."""
+        
+        chapters_text = ""
+        for ch_num in sorted(chapter_contents.keys()):
+            chapters_text += f"\n--- Chapter {ch_num} ---\n{chapter_contents[ch_num]}\n"
+        
+        system_prompt = f"""You are a continuity editor checking for consistency issues across chapters.
+
+NOVEL INFORMATION:
+- Synopsis: {synopsis}
+
+CHARACTER INFORMATION:
+{character_info}
+
+OUTLINE:
+{outline}
+
+CHAPTERS TO ANALYZE:
+{chapters_text}
+
+Check for continuity issues including:
+- Character consistency (personality, background, relationships)
+- Timeline and chronology issues
+- Plot inconsistencies
+- Setting and world-building contradictions
+- Dialogue voice consistency
+
+Provide results as JSON:
+{{
+    "continuity_score": "1-10 rating",
+    "issues_found": [
+        {{"type": "character/plot/timeline/setting", "chapter": number, "description": "specific issue", "severity": "high/medium/low"}},
+        ...
+    ],
+    "suggestions": ["suggestion1", "suggestion2", ...],
+    "character_consistency": {{"character_name": "assessment", ...}},
+    "timeline_assessment": "overall timeline consistency"
+}}"""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": "Please check continuity across the provided chapters."
+            }
+        ]
+        
+        response = await self._make_request(messages, system_prompt)
+        
+        try:
+            import json
+            return json.loads(response)
+        except:
+            return {
+                "continuity_score": "Unable to parse",
+                "analysis_text": response,
+                "issues_found": [],
+                "suggestions": [],
+                "character_consistency": {},
+                "timeline_assessment": ""
+            }
+    
+    async def suggest_chapters(
+        self,
+        next_chapter_number: int,
+        synopsis: str,
+        character_info: str,
+        outline: str,
+        existing_chapters: Dict[int, str],
+        num_suggestions: int,
+    ) -> List[Dict[str, Any]]:
+        """Suggest ideas for upcoming chapters."""
+        
+        context = ""
+        if existing_chapters:
+            recent_chapters = sorted(existing_chapters.keys())[-3:]  # Last 3 chapters
+            context = "\n\nRECENT CHAPTERS:\n"
+            for ch_num in recent_chapters:
+                if ch_num in existing_chapters:
+                    context += f"\nChapter {ch_num}: {existing_chapters[ch_num][:400]}...\n"
+        
+        system_prompt = f"""You are a story development expert suggesting ideas for upcoming chapters.
+
+NOVEL INFORMATION:
+- Synopsis: {synopsis}
+- Next chapter number: {next_chapter_number}
+
+CHARACTER INFORMATION:
+{character_info}
+
+OUTLINE:
+{outline}
+
+CONTEXT:
+{context}
+
+Suggest {num_suggestions} compelling ideas for Chapter {next_chapter_number} and beyond that:
+- Build naturally on existing story progression
+- Advance character arcs meaningfully  
+- Introduce appropriate conflict or tension
+- Move the plot toward resolution
+- Maintain reader engagement
+
+Format as JSON:
+{{
+    "suggestions": [
+        {{
+            "chapter_number": {next_chapter_number},
+            "title": "suggested title",
+            "summary": "brief chapter summary",
+            "key_events": ["event1", "event2", ...],
+            "character_focus": "which characters are featured",
+            "plot_advancement": "how this advances the overall plot",
+            "estimated_word_count": number
+        }},
+        ...
+    ]
+}}"""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please suggest {num_suggestions} ideas for Chapter {next_chapter_number}."
+            }
+        ]
+        
+        response = await self._make_request(messages, system_prompt)
+        
+        try:
+            import json
+            result = json.loads(response)
+            return result.get("suggestions", [])
+        except:
+            return [{"analysis_text": response, "chapter_number": next_chapter_number}]
+    
+    async def find_missing_chapters(
+        self,
+        outline: str,
+        existing_chapters: List[int],
+        synopsis: str,
+    ) -> List[Dict[str, Any]]:
+        """Analyze outline to find missing chapters."""
+        
+        existing_str = ", ".join(map(str, sorted(existing_chapters)))
+        
+        system_prompt = f"""You are a story structure analyst identifying missing chapters.
+
+SYNOPSIS:
+{synopsis}
+
+OUTLINE:
+{outline}
+
+EXISTING CHAPTERS: {existing_str}
+
+Analyze the outline and identify chapters that should exist but are missing. Consider:
+- Story progression gaps
+- Character development needs
+- Plot point coverage
+- Narrative flow requirements
+
+Format as JSON:
+{{
+    "missing_chapters": [
+        {{
+            "suggested_number": number,
+            "title": "suggested title", 
+            "purpose": "why this chapter is needed",
+            "plot_points": ["key events this chapter should cover"],
+            "placement_reason": "why it should go in this position",
+            "priority": "high/medium/low"
+        }},
+        ...
+    ],
+    "outline_analysis": "assessment of outline completeness"
+}}"""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": "Please analyze the outline and identify missing chapters."
+            }
+        ]
+        
+        response = await self._make_request(messages, system_prompt)
+        
+        try:
+            import json
+            result = json.loads(response)
+            return result.get("missing_chapters", [])
+        except:
+            return [{"analysis_text": response}]
+    
+    def set_model(self, model_name: str) -> None:
+        """Set the Claude model to use."""
+        self.model = model_name
+    
+    def set_max_tokens(self, max_tokens: int) -> None:
+        """Set the maximum tokens for responses."""
         self.max_tokens = max_tokens
-        self.temperature = temperature
