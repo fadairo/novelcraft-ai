@@ -77,7 +77,7 @@ novelcraft ai generate-chapter project.json --number 10 --context-chapters 7,8,9
 # Generate with custom title and outline section
 novelcraft ai generate-chapter project.json --number 15 \
   --title "The Revelation" \
-  --outline-section "Henry discovers Elena's true identity"
+  --outline-section "Henry discovers Jane's true identity"
 ```
 
 ### Expand Existing Content
@@ -88,7 +88,7 @@ novelcraft ai expand-chapter project.json --chapter 8 --target-words 500
 
 # Expand with specific direction
 novelcraft ai expand-chapter project.json --chapter 12 \
-  --notes "Add more tension between Henry and Tom" \
+  --notes "Add more tension between Billy and David" \
   --target-words 300
 ```
 
@@ -136,10 +136,10 @@ novelcraft chapter list project.json
 ```bash
 # Create a new character
 novelcraft character create --project project.json \
-  --name "Dr. Henry Millbank" \
-  --age 71 \
+  --name "Billy Prentice" \
+  --age 7401 \
   --role PROTAGONIST \
-  --description "Retired historian and former MI6 operative"
+  --description "Retired historian and footballer"
 
 # List all characters
 novelcraft character list project.json
@@ -241,10 +241,10 @@ Monitor character arcs and relationships across your novel:
 
 ```bash
 # View character relationships and development
-novelcraft character show project.json "Dr. Henry Millbank"
+novelcraft character show project.json "Billy Makeshift"
 
 # Track character mentions across chapters
-novelcraft search project.json "Henry"
+novelcraft search project.json "Billy"
 ```
 
 ## 🔧 Configuration
