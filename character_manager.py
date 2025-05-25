@@ -32,26 +32,12 @@ class CharacterManager:
     def load_project(self, project_dir: str):
         """Load project files and context."""
         self.project_dir = project_dir
-        print(f"📖 Loading project from: {project_dir}")
         
-        # Load project context
         self.project_context = self._load_project_files()
-        
-        # Load inspirations
         self.inspirations = self._load_inspirations()
-        
-        # Load chapters
         self.chapters = self._load_all_chapters()
-        
-        # Load existing character list
         self.existing_characters = self._load_existing_characters()
-        
-        # Extract project metadata
         self._extract_project_metadata()
-        
-        print(f"✅ Loaded {len(self.chapters)} chapters")
-        print(f"📚 Genre: {self.genre}")
-        print(f"🎭 Existing characters: {'Found' if self.existing_characters else 'None'}")
     
     def _load_project_files(self) -> Dict[str, str]:
         """Load synopsis, outline files."""
@@ -68,7 +54,6 @@ class CharacterManager:
                 if os.path.exists(file_path):
                     with open(file_path, 'r', encoding='utf-8') as f:
                         files[file_type] = f.read()
-                    print(f"  ✓ {file_type}: {name}")
                     break
             else:
                 files[file_type] = ""
@@ -92,8 +77,6 @@ class CharacterManager:
             if os.path.exists(file_path):
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                print(f"  ✓ existing characters: {filename}")
-                # Extract content after metadata separator if present
                 if "---" in content:
                     return content.split("---")[-1].strip()
                 return content
@@ -104,7 +87,6 @@ class CharacterManager:
         """Load all chapter files."""
         chapters = {}
         
-        # Look for chapters in various directories
         chapter_dirs = ['chapters', 'content', 'manuscript', 'revised', '.']
         
         for chapter_dir in chapter_dirs:
@@ -112,18 +94,15 @@ class CharacterManager:
             if not os.path.exists(search_dir):
                 continue
             
-            # Find chapter files
             patterns = ['chapter_*.md', 'chapter*.md', 'ch_*.md']
             for pattern in patterns:
                 files = glob.glob(os.path.join(search_dir, pattern))
                 for file_path in files:
-                    # Skip backup files but include revised files
                     if any(skip in file_path.lower() for skip in ['backup']):
                         continue
                     
-                    # Extract chapter number
                     chapter_num = self._extract_chapter_number(file_path)
-                    if chapter_num and chapter_num not in chapters:  # Prefer first found
+                    if chapter_num and chapter_num not in chapters:
                         with open(file_path, 'r', encoding='utf-8') as f:
                             content = f.read()
                         
@@ -148,7 +127,6 @@ class CharacterManager:
     
     def _extract_project_metadata(self):
         """Extract project metadata from context."""
-        # Try to determine genre from project files
         if self.project_context.get('synopsis'):
             synopsis = self.project_context['synopsis']
             if any(word in synopsis.lower() for word in ['spy', 'intelligence', 'espionage']):
@@ -162,8 +140,6 @@ class CharacterManager:
     
     def discover_characters_from_manuscript(self) -> Dict[str, int]:
         """Analyze manuscript to discover character names and frequency."""
-        print("🔍 Analyzing manuscript for characters...")
-        
         character_mentions = {}
         dialogue_speakers = {}
         
@@ -176,11 +152,10 @@ class CharacterManager:
                 if not line:
                     continue
                 
-                # Look for dialogue patterns
                 dialogue_patterns = [
                     r'^"[^"]*"\s*,?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:said|asked|replied|whispered|shouted)',
                     r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:said|asked|replied|whispered|shouted)\s*,?\s*"',
-                    r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*:\s*"',  # Name: "dialogue"
+                    r'^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s*:\s*"',
                 ]
                 
                 for pattern in dialogue_patterns:
@@ -190,12 +165,10 @@ class CharacterManager:
                         if len(name) < 25 and not any(word in name.lower() for word in ['chapter', 'said']):
                             dialogue_speakers[name] = dialogue_speakers.get(name, 0) + 1
                 
-                # Look for capitalized names (potential characters)
                 name_pattern = r'\b([A-Z][a-z]{2,12}(?:\s+[A-Z][a-z]{2,12})?)\b'
                 matches = re.findall(name_pattern, line)
                 for match in matches:
                     name = match.strip()
-                    # Filter out common words that aren't names
                     if (len(name) < 25 and 
                         not any(word in name.lower() for word in [
                             'chapter', 'the', 'and', 'but', 'when', 'where', 'what', 'who',
@@ -204,10 +177,9 @@ class CharacterManager:
                         ])):
                         character_mentions[name] = character_mentions.get(name, 0) + 1
         
-        # Combine and prioritize dialogue speakers
         all_characters = {}
         for name, count in dialogue_speakers.items():
-            all_characters[name] = count * 3  # Weight dialogue speakers higher
+            all_characters[name] = count * 3
         
         for name, count in character_mentions.items():
             if name in all_characters:
@@ -215,28 +187,21 @@ class CharacterManager:
             else:
                 all_characters[name] = count
         
-        # Filter to likely main characters (mentioned frequently)
         main_characters = {name: count for name, count in all_characters.items() 
-                          if count >= 3}  # Mentioned at least 3 times
+                          if count >= 3}
         
-        # Sort by frequency
         sorted_characters = dict(sorted(main_characters.items(), key=lambda x: x[1], reverse=True))
         
-        print(f"  Found {len(sorted_characters)} potential main characters")
         return sorted_characters
     
     def create_character_list_from_analysis(self, discovered_characters: Dict[str, int]) -> str:
         """Create character list using AI analysis of discovered characters."""
-        print("🤖 Creating character list from manuscript analysis...")
-        
-        # Prepare character evidence
         char_evidence = []
-        for name, count in list(discovered_characters.items())[:12]:  # Top 12 characters
+        for name, count in list(discovered_characters.items())[:12]:
             char_evidence.append(f"- {name}: mentioned {count} times")
         
-        # Prepare sample content from chapters
         sample_content = []
-        for chapter_num in sorted(list(self.chapters.keys())[:5]):  # First 5 chapters
+        for chapter_num in sorted(list(self.chapters.keys())[:5]):
             chapter = self.chapters[chapter_num]
             content_sample = chapter['content'][:800] + "..." if len(chapter['content']) > 800 else chapter['content']
             sample_content.append(f"Chapter {chapter_num} excerpt:\n{content_sample}")
@@ -299,8 +264,6 @@ Focus on characters that actually appear in the written chapters with speaking r
     
     def create_character_list_from_outline(self) -> str:
         """Create character list based on outline and synopsis when no manuscript exists."""
-        print("🤖 Creating character list from outline and synopsis...")
-        
         prompt = f"""Create a detailed character list for this {self.genre} novel based on the project outline and synopsis.
 
 NOVEL CONTEXT:
@@ -352,8 +315,6 @@ Base the characters on the synopsis and outline provided, creating rich, complex
     
     def enhance_existing_characters(self) -> str:
         """Enhance and improve existing character list."""
-        print("🤖 Enhancing existing character list...")
-        
         discovered_characters = {}
         if self.chapters:
             discovered_characters = self.discover_characters_from_manuscript()
@@ -363,7 +324,123 @@ Base the characters on the synopsis and outline provided, creating rich, complex
             for name, count in list(discovered_characters.items())[:10]:
                 char_evidence.append(f"- {name}: appears {count} times in manuscript")
         
-        prompt = f"""Enhance and improve this existing character list for a {self.genre} novel.
+        # Extract character names from existing list for batch processing
+        character_names = self._extract_character_names_from_list(self.existing_characters)
+        
+        if len(character_names) > 6:
+            # Process in batches to avoid token limits
+            return self._enhance_characters_in_batches(character_names, char_evidence)
+        else:
+            # Process all at once for smaller lists
+            return self._enhance_all_characters(char_evidence)
+    
+    def _extract_character_names_from_list(self, character_list: str) -> List[str]:
+        """Extract character names from existing character list."""
+        names = []
+        lines = character_list.split('\n')
+        for line in lines:
+            # Look for character headers (## CHARACTER NAME or similar)
+            if line.startswith('##') or line.startswith('#'):
+                # Extract name, cleaning up markdown and common prefixes
+                name = re.sub(r'^#+\s*', '', line).strip()
+                name = re.sub(r'\*\*.*?\*\*', '', name).strip()  # Remove bold formatting
+                if name and len(name) < 50:  # Reasonable name length
+                    names.append(name)
+        return names
+    
+    def _enhance_characters_in_batches(self, character_names: List[str], char_evidence: List[str]) -> str:
+        """Process characters in batches to avoid token limits."""
+        batch_size = 3
+        enhanced_characters = []
+        
+        for i in range(0, len(character_names), batch_size):
+            batch_names = character_names[i:i+batch_size]
+            
+            # Extract relevant sections from existing character list
+            batch_content = self._extract_character_sections(batch_names)
+            
+            enhanced_batch = self._enhance_character_batch(batch_content, char_evidence, batch_names)
+            if enhanced_batch and "Error" not in enhanced_batch:
+                enhanced_characters.append(enhanced_batch)
+        
+        return "\n\n".join(enhanced_characters)
+    
+    def _extract_character_sections(self, character_names: List[str]) -> str:
+        """Extract sections for specific characters from existing list."""
+        sections = []
+        current_section = ""
+        current_char = None
+        lines = self.existing_characters.split('\n')
+        
+        for line in lines:
+            if line.startswith('##') or line.startswith('#'):
+                # Save previous section
+                if current_char and current_section:
+                    sections.append(current_section.strip())
+                
+                # Check if this is one of our target characters
+                header_name = re.sub(r'^#+\s*', '', line).strip()
+                header_name = re.sub(r'\*\*.*?\*\*', '', header_name).strip()
+                
+                current_char = None
+                for target_name in character_names:
+                    if target_name.lower() in header_name.lower() or header_name.lower() in target_name.lower():
+                        current_char = target_name
+                        current_section = line + "\n"
+                        break
+                
+                if not current_char:
+                    current_section = ""
+            elif current_char:
+                current_section += line + "\n"
+        
+        # Don't forget the last section
+        if current_char and current_section:
+            sections.append(current_section.strip())
+        
+        return "\n\n".join(sections)
+    
+    def _enhance_character_batch(self, batch_content: str, char_evidence: List[str], batch_names: List[str]) -> str:
+        """Enhance a batch of characters."""
+        prompt = f"""Enhance these specific characters for a {self.genre} novel. Complete ALL characters fully with no truncation.
+
+CHARACTERS TO ENHANCE:
+{batch_content}
+
+CHARACTER EVIDENCE FROM MANUSCRIPT:
+{chr(10).join(char_evidence) if char_evidence else 'No manuscript analysis available'}
+
+GENRE: {self.genre}
+LITERARY INSPIRATIONS: {self.inspirations[:500] if self.inspirations else "Literary fiction"}
+
+For each character, provide a complete enhanced profile:
+
+## CHARACTER NAME
+**Role in Story:** [Function and importance]
+**Character Description:** [Physical and personality traits]
+**Character Arc:** [Development and growth journey]
+**Key Relationships:** [Dynamics with other characters]
+**Voice & Dialogue Style:** [Speaking patterns and personality in dialogue]
+**Motivations & Goals:** [Driving forces and conflicts]
+**Background & History:** [Relevant past and circumstances]
+**Thematic Function:** [How they serve the novel's themes]
+**Development Notes:** [Consistency and improvement guidance]
+
+CRITICAL: Complete ALL {len(batch_names)} characters fully. Do not truncate or summarize. Each character needs 150-200 words of detailed development."""
+
+        try:
+            response = self.client.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=6000,  # Increased for batch processing
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.content[0].text
+        except Exception as e:
+            return f"Error enhancing character batch: {e}"
+    
+    def _enhance_all_characters(self, char_evidence: List[str]) -> str:
+        """Enhance all characters at once for smaller lists."""
+        prompt = f"""Enhance and improve this complete character list for a {self.genre} novel. Process ALL characters fully.
 
 CURRENT CHARACTER LIST:
 {self.existing_characters}
@@ -376,8 +453,8 @@ LITERARY INSPIRATIONS:
 {self.inspirations if self.inspirations else "Literary fiction"}
 
 PROJECT CONTEXT:
-SYNOPSIS: {self.project_context.get('synopsis', 'Not available')}
-OUTLINE: {self.project_context.get('outline', 'Not available')}
+SYNOPSIS: {self.project_context.get('synopsis', 'Not available')[:800]}
+OUTLINE: {self.project_context.get('outline', 'Not available')[:800]}
 
 CHARACTER EVIDENCE FROM MANUSCRIPT:
 {chr(10).join(char_evidence) if char_evidence else 'No manuscript analysis available'}
@@ -404,101 +481,36 @@ STRUCTURE FOR EACH CHARACTER:
 **Thematic Function:** [How they serve the novel's themes]
 **Development Notes:** [Consistency and improvement guidance]
 
-Provide comprehensive, detailed profiles (150-200 words per major character) that will serve as a definitive character bible for the novel."""
+CRITICAL: Provide comprehensive, detailed profiles (150-200 words per character) for ALL characters. Complete every character fully without truncation."""
 
         try:
             response = self.client.messages.create(
                 model="claude-3-5-sonnet-20241022",
-                max_tokens=4500,
+                max_tokens=8000,  # Increased token limit
                 messages=[{"role": "user", "content": prompt}]
             )
             return response.content[0].text
         except Exception as e:
             return f"Error enhancing characters: {e}"
     
-    def interactive_character_creation(self) -> str:
-        """Interactive character creation with user input."""
-        print("\n🎭 Interactive Character Creation")
-        print("=" * 50)
-        
-        characters = []
-        
-        while True:
-            print(f"\nCreating character #{len(characters) + 1}")
-            
-            name = input("Character name (or 'done' to finish): ").strip()
-            if name.lower() == 'done':
-                break
-            
-            role = input("Role (protagonist/antagonist/supporting): ").strip()
-            description = input("Brief description: ").strip()
-            
-            character = {
-                'name': name,
-                'role': role,
-                'description': description
-            }
-            characters.append(character)
-            
-            print(f"✓ Added {name}")
-        
-        if not characters:
-            print("No characters created.")
-            return ""
-        
-        # Create character list from user input
-        char_descriptions = []
-        for char in characters:
-            char_descriptions.append(f"- {char['name']}: {char['role']} - {char['description']}")
-        
-        prompt = f"""Create a detailed character list based on user input for a {self.genre} novel.
-
-USER-PROVIDED CHARACTERS:
-{chr(10).join(char_descriptions)}
-
-NOVEL CONTEXT:
-Genre: {self.genre}
-Literary Inspirations: {self.inspirations if self.inspirations else "Literary fiction"}
-
-PROJECT CONTEXT:
-SYNOPSIS: {self.project_context.get('synopsis', 'Not available')}
-
-For each character provided, create a comprehensive profile:
-
-## CHARACTER NAME
-**Role in Story:** [Expand on their function]
-**Character Description:** [Detailed physical and personality traits]
-**Character Arc:** [Potential development journey]
-**Key Relationships:** [How they relate to other characters]
-**Voice & Dialogue Style:** [Speaking patterns]
-**Motivations & Goals:** [What drives them]
-**Background & History:** [Relevant past]
-**Thematic Function:** [How they serve the story themes]
-**Development Notes:** [Writing guidance]
-
-Expand each character into a full 150-200 word profile suitable for {self.genre}."""
-
-        try:
-            response = self.client.messages.create(
-                model="claude-3-5-sonnet-20241022",
-                max_tokens=3000,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response.content[0].text
-        except Exception as e:
-            return f"Error creating interactive characters: {e}"
+    def create_characters_auto(self) -> str:
+        """Automatically determine best approach and create character list."""
+        if self.existing_characters:
+            return self.enhance_existing_characters()
+        elif self.chapters:
+            discovered = self.discover_characters_from_manuscript()
+            return self.create_character_list_from_analysis(discovered)
+        else:
+            return self.create_character_list_from_outline()
     
     def save_character_list(self, character_content: str) -> str:
         """Save character list to file."""
         output_path = os.path.join(self.project_dir, "characters_revised.md")
         
-        # Create backup if file exists
         if os.path.exists(output_path):
             backup_path = f"{output_path}.backup"
             os.rename(output_path, backup_path)
-            print(f"📄 Previous file backed up to: {os.path.basename(backup_path)}")
         
-        # Write new file
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(f"# Revised Character List\n\n")
             f.write(f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -507,30 +519,12 @@ Expand each character into a full 150-200 word profile suitable for {self.genre}
             f.write("---\n\n")
             f.write(character_content)
         
-        print(f"✅ Character list saved to: {os.path.basename(output_path)}")
         return output_path
 
 def main():
     """Main function for command-line usage."""
     parser = argparse.ArgumentParser(
-        description="Create and manage character lists for novel projects",
-        epilog="""
-Examples:
-  # Analyze manuscript and create character list
-  python character_manager.py glasshouse --from-manuscript
-  
-  # Create from outline/synopsis only
-  python character_manager.py glasshouse --from-outline
-  
-  # Enhance existing character list
-  python character_manager.py glasshouse --enhance
-  
-  # Interactive character creation
-  python character_manager.py glasshouse --interactive
-  
-  # Show discovered characters without creating list
-  python character_manager.py glasshouse --discover-only
-        """
+        description="Create and manage character lists for novel projects"
     )
     parser.add_argument(
         "project_dir",
@@ -552,52 +546,31 @@ Examples:
         help="Enhance existing character list"
     )
     parser.add_argument(
-        "--interactive",
-        action="store_true", 
-        help="Create characters interactively with user input"
-    )
-    parser.add_argument(
         "--discover-only",
         action="store_true",
         help="Only show discovered characters, don't create file"
     )
-    parser.add_argument(
-        "--output",
-        help="Custom output filename (default: characters_revised.md)"
-    )
     
     args = parser.parse_args()
     
-    # Initialize character manager
     try:
         manager = CharacterManager()
     except Exception as e:
-        print(f"❌ Error initializing AI client: {e}")
-        print("Make sure ANTHROPIC_API_KEY environment variable is set")
         return 1
     
     try:
-        print(f"🎭 Character Manager - {os.path.basename(args.project_dir)}")
-        print("=" * 60)
-        
-        # Load project
         manager.load_project(args.project_dir)
         
-        # Determine action
         if args.discover_only:
             discovered = manager.discover_characters_from_manuscript()
-            print(f"\n🔍 Discovered Characters:")
-            print("=" * 30)
             for name, count in discovered.items():
-                print(f"  {name}: {count} mentions")
+                print(f"{name}: {count}")
             return 0
         
-        # Create or enhance character list
         character_content = ""
         
         if args.from_manuscript:
             if not manager.chapters:
-                print("❌ No chapters found for manuscript analysis")
                 return 1
             discovered = manager.discover_characters_from_manuscript()
             character_content = manager.create_character_list_from_analysis(discovered)
@@ -607,41 +580,21 @@ Examples:
             
         elif args.enhance:
             if not manager.existing_characters:
-                print("❌ No existing character list found to enhance")
                 return 1
             character_content = manager.enhance_existing_characters()
             
-        elif args.interactive:
-            character_content = manager.interactive_character_creation()
-            
         else:
-            # Auto-detect best approach
-            if manager.existing_characters:
-                print("📝 Enhancing existing character list...")
-                character_content = manager.enhance_existing_characters()
-            elif manager.chapters:
-                print("📖 Creating character list from manuscript...")
-                discovered = manager.discover_characters_from_manuscript()
-                character_content = manager.create_character_list_from_analysis(discovered)
-            else:
-                print("📋 Creating character list from outline...")
-                character_content = manager.create_character_list_from_outline()
+            character_content = manager.create_characters_auto()
         
         if character_content and "Error" not in character_content:
-            # Save character list
             output_path = manager.save_character_list(character_content)
-            
-            print(f"\n✅ Character list creation complete!")
-            print(f"📁 File: {output_path}")
-            print(f"📊 Ready for use in novel revision workflows")
+            print(output_path)
         else:
-            print(f"❌ Failed to create character list: {character_content}")
             return 1
         
         return 0
         
     except Exception as e:
-        print(f"❌ Error: {e}")
         return 1
 
 if __name__ == "__main__":
