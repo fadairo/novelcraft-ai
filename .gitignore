@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+clowns/
 _glasshouse/
 glasshouse/
 generated/
