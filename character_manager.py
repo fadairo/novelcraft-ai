@@ -23,7 +23,7 @@ class CharacterManager:
         """Initialize with Anthropic API key."""
         self.client = anthropic.Anthropic(api_key=api_key or os.getenv('ANTHROPIC_API_KEY'))
         self.project_dir = None
-        self.genre = "Literary Fiction"
+        self.genre = "Literary Crime Thriller"
         self.inspirations = ""
         self.chapters = {}
         self.project_context = {}

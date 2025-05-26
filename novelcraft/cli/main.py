@@ -68,12 +68,12 @@ def create(ctx, title, author, path):
         project_file = project_path / 'project.json'
         ctx.obj['project_loader'].save_project(new_project, project_file)
         
-        click.echo(f"[SUCCESS] Created project '{title}' in {project_path}")
-        click.echo(f"[INFO] Project file: {project_file}")
-        click.echo(f"[INFO] Chapters directory: {project_path / 'chapters'}")
+        click.echo(f"✅ Created project '{title}' in {project_path}")
+        click.echo(f"📁 Project file: {project_file}")
+        click.echo(f"📁 Chapters directory: {project_path / 'chapters'}")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error creating project: {e}", err=True)
+        click.echo(f"❌ Error creating project: {e}", err=True)
         sys.exit(1)
 
 
@@ -88,39 +88,39 @@ def discover(ctx, project_file):
         # Discover existing content
         discovered = project.discover_existing_content()
         
-        click.echo(f"[DISCOVERY] Discovering content in {project.project_path}")
+        click.echo(f"🔍 Discovering content in {project.project_path}")
         click.echo("=" * 50)
         
         # Show discovered files
         if discovered["chapters"]:
-            click.echo(f"[CHAPTERS] Found {len(discovered['chapters'])} chapter files:")
+            click.echo(f"📚 Found {len(discovered['chapters'])} chapter files:")
             for chapter_file in discovered["chapters"]:
-                click.echo(f"  * {chapter_file}")
+                click.echo(f"  • {chapter_file}")
         
         if discovered["characters"]:
-            click.echo(f"[CHARACTERS] Found {len(discovered['characters'])} character files:")
+            click.echo(f"👥 Found {len(discovered['characters'])} character files:")
             for char_file in discovered["characters"]:
-                click.echo(f"  * {char_file}")
+                click.echo(f"  • {char_file}")
         
         if discovered["other_files"]:
-            click.echo(f"[FILES] Found {len(discovered['other_files'])} other files:")
+            click.echo(f"📄 Found {len(discovered['other_files'])} other files:")
             for other_file in discovered["other_files"]:
-                click.echo(f"  * {other_file}")
+                click.echo(f"  • {other_file}")
         
         # Import chapters
         imported = project.import_existing_chapters()
         if imported:
-            click.echo(f"\n[SUCCESS] Imported {len(imported)} chapters:")
+            click.echo(f"\n✅ Imported {len(imported)} chapters:")
             for chapter_name in imported:
-                click.echo(f"  * {chapter_name}")
+                click.echo(f"  • {chapter_name}")
             
             # Save updated project
             ctx.obj['project_loader'].save_project(project, project_file)
         else:
-            click.echo("\n[INFO] No new chapters to import")
+            click.echo("\n📭 No new chapters to import")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error discovering content: {e}", err=True)
+        click.echo(f"❌ Error discovering content: {e}", err=True)
         sys.exit(1)
 
 
@@ -138,15 +138,15 @@ def sync(ctx, project_file):
         # Save updated project
         ctx.obj['project_loader'].save_project(project, project_file)
         
-        click.echo("[SUCCESS] Project synchronized with file system")
+        click.echo("✅ Project synchronized with file system")
         
         # Show updated statistics
         stats = project.get_project_statistics()
-        click.echo(f"[STATS] Total words: {stats['total_words']:,}")
-        click.echo(f"[STATS] Chapters: {stats['total_chapters']}")
+        click.echo(f"📊 Total words: {stats['total_words']:,}")
+        click.echo(f"📚 Chapters: {stats['total_chapters']}")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error syncing project: {e}", err=True)
+        click.echo(f"❌ Error syncing project: {e}", err=True)
         sys.exit(1)
 
 
@@ -161,14 +161,14 @@ def validate(ctx, project_file):
         issues = project.validate_project()
         
         if not issues:
-            click.echo("[SUCCESS] Project validation passed - no issues found")
+            click.echo("✅ Project validation passed - no issues found")
         else:
-            click.echo(f"[WARNING] Found {len(issues)} issues:")
+            click.echo(f"⚠️  Found {len(issues)} issues:")
             for issue in issues:
-                click.echo(f"  * {issue}")
+                click.echo(f"  • {issue}")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error validating project: {e}", err=True)
+        click.echo(f"❌ Error validating project: {e}", err=True)
         sys.exit(1)
 
 
@@ -179,13 +179,13 @@ def load(ctx, project_file):
     """Load an existing project"""
     try:
         project = ctx.obj['project_loader'].load_project(project_file)
-        click.echo(f"[PROJECT] Loaded project: {project.title}")
-        click.echo(f"[AUTHOR] Author: {project.author}")
-        click.echo(f"[STATS] Chapters: {len(project.document.chapters)}")
-        click.echo(f"[STATS] Characters: {len(project.characters.characters)}")
+        click.echo(f"📖 Loaded project: {project.title}")
+        click.echo(f"👤 Author: {project.author}")
+        click.echo(f"📊 Chapters: {len(project.document.chapters)}")
+        click.echo(f"👥 Characters: {len(project.characters.characters)}")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error loading project: {e}", err=True)
+        click.echo(f"❌ Error loading project: {e}", err=True)
         sys.exit(1)
 
 
@@ -197,21 +197,21 @@ def info(ctx, project_file):
     try:
         project = ctx.obj['project_loader'].load_project(project_file)
         
-        click.echo(f"\n[PROJECT] Project: {project.title}")
-        click.echo(f"[AUTHOR] Author: {project.author}")
-        click.echo(f"[CREATED] Created: {project.created_at.strftime('%Y-%m-%d %H:%M')}")
-        click.echo(f"[MODIFIED] Modified: {project.modified_at.strftime('%Y-%m-%d %H:%M')}")
-        click.echo(f"[STATS] Total words: {project.document.word_count}")
-        click.echo(f"[STATS] Chapters: {len(project.document.chapters)}")
-        click.echo(f"[STATS] Characters: {len(project.characters.characters)}")
+        click.echo(f"\n📖 Project: {project.title}")
+        click.echo(f"👤 Author: {project.author}")
+        click.echo(f"📅 Created: {project.created_at.strftime('%Y-%m-%d %H:%M')}")
+        click.echo(f"📝 Modified: {project.modified_at.strftime('%Y-%m-%d %H:%M')}")
+        click.echo(f"📊 Total words: {project.document.word_count}")
+        click.echo(f"📚 Chapters: {len(project.document.chapters)}")
+        click.echo(f"👥 Characters: {len(project.characters.characters)}")
         
         if project.metadata:
-            click.echo(f"\n[METADATA] Metadata:")
+            click.echo(f"\n📋 Metadata:")
             for key, value in project.metadata.items():
                 click.echo(f"  {key}: {value}")
                 
     except Exception as e:
-        click.echo(f"[ERROR] Error getting project info: {e}", err=True)
+        click.echo(f"❌ Error getting project info: {e}", err=True)
         sys.exit(1)
 
 
@@ -252,15 +252,15 @@ def create(ctx, project, name, age, role, description, backstory, traits, goals)
             project_obj = ctx.obj['project_loader'].load_project(project)
             project_obj.characters.add_character(character)
             ctx.obj['project_loader'].save_project(project_obj, project)
-            click.echo(f"[SUCCESS] Created character '{name}' and added to project")
+            click.echo(f"✅ Created character '{name}' and added to project")
         else:
             # Save as standalone character file
             char_file = Path(f"{name.lower().replace(' ', '_')}.json")
             ctx.obj['file_handler'].write_json(char_file, character.to_dict())
-            click.echo(f"[SUCCESS] Created character '{name}' saved to {char_file}")
+            click.echo(f"✅ Created character '{name}' saved to {char_file}")
             
     except Exception as e:
-        click.echo(f"[ERROR] Error creating character: {e}", err=True)
+        click.echo(f"❌ Error creating character: {e}", err=True)
         sys.exit(1)
 
 
@@ -273,14 +273,14 @@ def list(ctx, project_file):
         project = ctx.obj['project_loader'].load_project(project_file)
         
         if not project.characters.characters:
-            click.echo("[INFO] No characters found in project")
+            click.echo("📭 No characters found in project")
             return
         
-        click.echo(f"\n[CHARACTERS] Characters in '{project.title}':")
+        click.echo(f"\n👥 Characters in '{project.title}':")
         click.echo("=" * 50)
         
         for character in project.characters.characters.values():
-            click.echo(f"\n[CHARACTER] {character.name}")
+            click.echo(f"\n👤 {character.name}")
             click.echo(f"   Age: {character.age}")
             click.echo(f"   Role: {character.role.value}")
             click.echo(f"   Description: {character.description}")
@@ -292,7 +292,7 @@ def list(ctx, project_file):
                 click.echo(f"   Goals: {', '.join(character.goals)}")
                 
     except Exception as e:
-        click.echo(f"[ERROR] Error listing characters: {e}", err=True)
+        click.echo(f"❌ Error listing characters: {e}", err=True)
         sys.exit(1)
 
 
@@ -307,10 +307,10 @@ def show(ctx, project_file, character_name):
         character = project.characters.get_character(character_name)
         
         if not character:
-            click.echo(f"[ERROR] Character '{character_name}' not found")
+            click.echo(f"❌ Character '{character_name}' not found")
             sys.exit(1)
         
-        click.echo(f"\n[CHARACTER] Character: {character.name}")
+        click.echo(f"\n👤 Character: {character.name}")
         click.echo("=" * 50)
         click.echo(f"Age: {character.age}")
         click.echo(f"Role: {character.role.value}")
@@ -323,20 +323,20 @@ def show(ctx, project_file, character_name):
         if character.traits:
             click.echo(f"\nTraits:")
             for trait in character.traits:
-                click.echo(f"  * {trait}")
+                click.echo(f"  • {trait}")
         
         if character.goals:
             click.echo(f"\nGoals:")
             for goal in character.goals:
-                click.echo(f"  * {goal}")
+                click.echo(f"  • {goal}")
         
         if character.relationships:
             click.echo(f"\nRelationships:")
             for rel_name, relationship in character.relationships.items():
-                click.echo(f"  * {rel_name}: {relationship}")
+                click.echo(f"  • {rel_name}: {relationship}")
                 
     except Exception as e:
-        click.echo(f"[ERROR] Error showing character: {e}", err=True)
+        click.echo(f"❌ Error showing character: {e}", err=True)
         sys.exit(1)
 
 
@@ -358,7 +358,7 @@ def edit(ctx, project_file, character_name, name, age, role, description, backst
         character = project.characters.get_character(character_name)
         
         if not character:
-            click.echo(f"[ERROR] Character '{character_name}' not found")
+            click.echo(f"❌ Character '{character_name}' not found")
             sys.exit(1)
         
         # Update fields
@@ -388,10 +388,10 @@ def edit(ctx, project_file, character_name, name, age, role, description, backst
         
         # Save project
         ctx.obj['project_loader'].save_project(project, project_file)
-        click.echo(f"[SUCCESS] Updated character '{character.name}'")
+        click.echo(f"✅ Updated character '{character.name}'")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error editing character: {e}", err=True)
+        click.echo(f"❌ Error editing character: {e}", err=True)
         sys.exit(1)
 
 
@@ -406,15 +406,15 @@ def delete(ctx, project_file, character_name):
         project = ctx.obj['project_loader'].load_project(project_file)
         
         if character_name not in project.characters.characters:
-            click.echo(f"[ERROR] Character '{character_name}' not found")
+            click.echo(f"❌ Character '{character_name}' not found")
             sys.exit(1)
         
         project.characters.remove_character(character_name)
         ctx.obj['project_loader'].save_project(project, project_file)
-        click.echo(f"[SUCCESS] Deleted character '{character_name}'")
+        click.echo(f"✅ Deleted character '{character_name}'")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error deleting character: {e}", err=True)
+        click.echo(f"❌ Error deleting character: {e}", err=True)
         sys.exit(1)
 
 
@@ -432,7 +432,7 @@ def create(ctx, project_file, number, title, content):
         
         # Check if chapter already exists
         if number in project.document.chapters:
-            click.echo(f"[ERROR] Chapter {number} already exists")
+            click.echo(f"❌ Chapter {number} already exists")
             sys.exit(1)
         
         # Normalize the title
@@ -460,15 +460,15 @@ def create(ctx, project_file, number, title, content):
             chapter = project.document.get_chapter(number)
             file_path = chapter.get_file_path(project.project_path)
             
-            click.echo(f"[SUCCESS] Created {normalized_title}")
-            click.echo(f"[STATS] Word count: {chapter.word_count}")
-            click.echo(f"[FILE] File: {file_path.relative_to(project.project_path)}")
+            click.echo(f"✅ Created {normalized_title}")
+            click.echo(f"📝 Word count: {chapter.word_count}")
+            click.echo(f"📁 File: {file_path.relative_to(project.project_path)}")
         else:
-            click.echo(f"[ERROR] Failed to create chapter")
+            click.echo(f"❌ Failed to create chapter")
             sys.exit(1)
         
     except Exception as e:
-        click.echo(f"[ERROR] Error creating chapter: {e}", err=True)
+        click.echo(f"❌ Error creating chapter: {e}", err=True)
         sys.exit(1)
 
 
@@ -484,7 +484,7 @@ def edit(ctx, project_file, chapter_number, content):
         
         chapter = project.document.get_chapter(chapter_number)
         if not chapter:
-            click.echo(f"[ERROR] Chapter {chapter_number} not found")
+            click.echo(f"❌ Chapter {chapter_number} not found")
             sys.exit(1)
         
         # Get current content if no new content provided
@@ -493,7 +493,7 @@ def edit(ctx, project_file, chapter_number, content):
             content = click.edit(f"# {chapter.title}\n\n{current_content}")
             
             if not content:
-                click.echo("[ERROR] No content provided")
+                click.echo("❌ No content provided")
                 sys.exit(1)
             
             # Remove the header from editor content
@@ -510,14 +510,14 @@ def edit(ctx, project_file, chapter_number, content):
             
             # Get updated chapter info
             chapter = project.document.get_chapter(chapter_number)
-            click.echo(f"[SUCCESS] Updated {chapter.title}")
-            click.echo(f"[STATS] Word count: {chapter.word_count}")
+            click.echo(f"✅ Updated {chapter.title}")
+            click.echo(f"📝 Word count: {chapter.word_count}")
         else:
-            click.echo(f"[ERROR] Failed to update chapter")
+            click.echo(f"❌ Failed to update chapter")
             sys.exit(1)
         
     except Exception as e:
-        click.echo(f"[ERROR] Error editing chapter: {e}", err=True)
+        click.echo(f"❌ Error editing chapter: {e}", err=True)
         sys.exit(1)
 
 
@@ -532,14 +532,14 @@ def show(ctx, project_file, chapter_number):
         
         chapter = project.document.get_chapter(chapter_number)
         if not chapter:
-            click.echo(f"[ERROR] Chapter {chapter_number} not found")
+            click.echo(f"❌ Chapter {chapter_number} not found")
             sys.exit(1)
         
         # Sync with file first
         chapter.sync_with_file(project.project_path)
         
-        click.echo(f"\n[CHAPTER] {chapter.title}")
-        click.echo("=" * (len(chapter.title) + 10))
+        click.echo(f"\n📖 {chapter.title}")
+        click.echo("=" * (len(chapter.title) + 4))
         click.echo(f"Number: {chapter.number}")
         click.echo(f"Words: {chapter.word_count:,}")
         click.echo(f"Status: {chapter.status}")
@@ -547,7 +547,7 @@ def show(ctx, project_file, chapter_number):
         if chapter.file_path:
             file_path = chapter.get_file_path(project.project_path)
             click.echo(f"File: {chapter.file_path}")
-            click.echo(f"File exists: {'YES' if file_path and file_path.exists() else 'NO'}")
+            click.echo(f"File exists: {'✅' if file_path and file_path.exists() else '❌'}")
             
             if chapter.file_modified_at:
                 click.echo(f"File modified: {chapter.file_modified_at.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -565,7 +565,7 @@ def show(ctx, project_file, chapter_number):
             click.echo(f"\nContent preview:\n{preview}")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error showing chapter: {e}", err=True)
+        click.echo(f"❌ Error showing chapter: {e}", err=True)
         sys.exit(1)
 
 
@@ -578,10 +578,10 @@ def list(ctx, project_file):
         project = ctx.obj['project_loader'].load_project(project_file)
         
         if not project.document.chapters:
-            click.echo("[INFO] No chapters found in project")
+            click.echo("📭 No chapters found in project")
             return
         
-        click.echo(f"\n[CHAPTERS] Chapters in '{project.title}':")
+        click.echo(f"\n📚 Chapters in '{project.title}':")
         click.echo("=" * 60)
         
         total_words = 0
@@ -594,7 +594,7 @@ def list(ctx, project_file):
         click.echo(f"Total: {len(project.document.chapters)} chapters, {total_words} words")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error listing chapters: {e}", err=True)
+        click.echo(f"❌ Error listing chapters: {e}", err=True)
         sys.exit(1)
 
 
@@ -611,7 +611,7 @@ def status(ctx, project_file):
             # Look for project.json in the directory
             project_file_path = project_path / 'project.json'
             if not project_file_path.exists():
-                click.echo(f"[ERROR] No project.json found in {project_path}")
+                click.echo(f"❌ No project.json found in {project_path}")
                 click.echo("   Make sure you're in a project directory or specify the project file directly")
                 sys.exit(1)
         else:
@@ -626,47 +626,47 @@ def status(ctx, project_file):
         # Get comprehensive statistics
         stats = project.get_project_statistics()
         
-        click.echo(f"\n[PROJECT STATUS] Project Status: {stats['title']}")
+        click.echo(f"\n📊 Project Status: {stats['title']}")
         click.echo("=" * 50)
         
         # Basic info
-        click.echo(f"[TITLE] Title: {stats['title']}")
-        click.echo(f"[AUTHOR] Author: {stats['author']}")
-        click.echo(f"[CREATED] Created: {stats['created_at'].strftime('%Y-%m-%d')}")
-        click.echo(f"[MODIFIED] Last Modified: {stats['modified_at'].strftime('%Y-%m-%d %H:%M')}")
+        click.echo(f"📖 Title: {stats['title']}")
+        click.echo(f"👤 Author: {stats['author']}")
+        click.echo(f"📅 Created: {stats['created_at'].strftime('%Y-%m-%d')}")
+        click.echo(f"📝 Last Modified: {stats['modified_at'].strftime('%Y-%m-%d %H:%M')}")
         
         # Progress stats
-        click.echo(f"[TARGET] Target Word Count: {stats['target_words']:,}")
-        click.echo(f"[CURRENT] Current Word Count: {stats['total_words']:,}")
-        click.echo(f"[PROGRESS] Progress: {stats['progress_percentage']:.1f}%")
+        click.echo(f"🎯 Target Word Count: {stats['target_words']:,}")
+        click.echo(f"📊 Current Word Count: {stats['total_words']:,}")
+        click.echo(f"📈 Progress: {stats['progress_percentage']:.1f}%")
         
         # Chapter stats
-        click.echo(f"[CHAPTERS] Total Chapters: {stats['total_chapters']}")
+        click.echo(f"📚 Total Chapters: {stats['total_chapters']}")
         if stats['average_chapter_length'] > 0:
-            click.echo(f"[AVERAGE] Average Chapter Length: {stats['average_chapter_length']:,} words")
+            click.echo(f"📄 Average Chapter Length: {stats['average_chapter_length']:,} words")
         
         # Character stats
-        click.echo(f"[CHARACTERS] Total Characters: {stats['characters_count']}")
+        click.echo(f"👥 Total Characters: {stats['characters_count']}")
         
         # Missing chapters
         if stats['missing_chapters']:
-            click.echo(f"[WARNING] Missing Chapters: {', '.join(map(str, stats['missing_chapters']))}")
+            click.echo(f"⚠️  Missing Chapters: {', '.join(map(str, stats['missing_chapters']))}")
         
         # File-based chapter info
         chapters_with_files = sum(1 for ch in stats['chapters'] if ch['has_file'])
         if chapters_with_files != stats['total_chapters']:
-            click.echo(f"[FILES] Chapters with files: {chapters_with_files}/{stats['total_chapters']}")
+            click.echo(f"📁 Chapters with files: {chapters_with_files}/{stats['total_chapters']}")
         
         # Recent activity
         if stats['chapters']:
             recent_chapters = sorted(stats['chapters'], key=lambda x: x['words'], reverse=True)[:3]
-            click.echo(f"\n[LARGEST] Largest Chapters:")
+            click.echo(f"\n📝 Largest Chapters:")
             for chapter in recent_chapters:
-                status_icon = "FILE" if chapter['has_file'] else "MISSING"
-                click.echo(f"  [{status_icon}] {chapter['title']} ({chapter['words']:,} words)")
+                status_icon = "📁" if chapter['has_file'] else "❌"
+                click.echo(f"  {status_icon} {chapter['title']} ({chapter['words']:,} words)")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error getting project status: {e}", err=True)
+        click.echo(f"❌ Error getting project status: {e}", err=True)
         sys.exit(1)
 
 
@@ -696,7 +696,7 @@ def generate_chapter(ctx, project_file, number, title, outline_section, word_cou
         
         # Check if chapter already exists
         if number in project.document.chapters:
-            click.echo(f"[ERROR] Chapter {number} already exists")
+            click.echo(f"❌ Chapter {number} already exists")
             sys.exit(1)
         
         # Parse context chapters
@@ -705,17 +705,17 @@ def generate_chapter(ctx, project_file, number, title, outline_section, word_cou
             try:
                 context_chapter_list = [int(x.strip()) for x in context_chapters.split(',')]
             except ValueError:
-                click.echo("[ERROR] Invalid context chapters format. Use: 1,2,3")
+                click.echo("❌ Invalid context chapters format. Use: 1,2,3")
                 sys.exit(1)
         
         # Initialize AI components
         claude_client = ClaudeClient()
         generator = ContentGenerator(claude_client)
         
-        click.echo(f"[AI] Generating Chapter {number}...")
+        click.echo(f"🤖 Generating Chapter {number}...")
         if title:
-            click.echo(f"[TITLE] Title: {title}")
-        click.echo(f"[TARGET] Target: {word_count:,} words")
+            click.echo(f"📝 Title: {title}")
+        click.echo(f"🎯 Target: {word_count:,} words")
         
         # Generate chapter
         async def generate():
@@ -735,15 +735,15 @@ def generate_chapter(ctx, project_file, number, title, outline_section, word_cou
             ctx.obj['project_loader'].save_project(project, project_file)
             
             chapter = project.document.get_chapter(number)
-            click.echo(f"[SUCCESS] Generated {chapter.title}")
-            click.echo(f"[STATS] Word count: {chapter.word_count:,}")
-            click.echo(f"[FILE] File: {chapter.file_path}")
+            click.echo(f"✅ Generated {chapter.title}")
+            click.echo(f"📝 Word count: {chapter.word_count:,}")
+            click.echo(f"📁 File: {chapter.file_path}")
         else:
-            click.echo("[ERROR] Failed to generate chapter")
+            click.echo("❌ Failed to generate chapter")
             sys.exit(1)
         
     except Exception as e:
-        click.echo(f"[ERROR] Error generating chapter: {e}", err=True)
+        click.echo(f"❌ Error generating chapter: {e}", err=True)
         sys.exit(1)
 
 
@@ -764,7 +764,7 @@ def expand_chapter(ctx, project_file, chapter, notes, target_words):
         
         # Check if chapter exists
         if chapter not in project.document.chapters:
-            click.echo(f"[ERROR] Chapter {chapter} not found")
+            click.echo(f"❌ Chapter {chapter} not found")
             sys.exit(1)
         
         chapter_obj = project.document.get_chapter(chapter)
@@ -773,10 +773,10 @@ def expand_chapter(ctx, project_file, chapter, notes, target_words):
         claude_client = ClaudeClient()
         generator = ContentGenerator(claude_client)
         
-        click.echo(f"[AI] Expanding {chapter_obj.title}...")
-        click.echo(f"[TARGET] Adding ~{target_words:,} words")
+        click.echo(f"🤖 Expanding {chapter_obj.title}...")
+        click.echo(f"🎯 Adding ~{target_words:,} words")
         if notes:
-            click.echo(f"[NOTES] Notes: {notes}")
+            click.echo(f"📝 Notes: {notes}")
         
         # Expand chapter
         async def expand():
@@ -803,18 +803,18 @@ def expand_chapter(ctx, project_file, chapter, notes, target_words):
                 updated_chapter = project.document.get_chapter(chapter)
                 words_added = updated_chapter.word_count - chapter_obj.word_count
                 
-                click.echo(f"[SUCCESS] Expanded {chapter_obj.title}")
-                click.echo(f"[ADDED] Words added: {words_added:,}")
-                click.echo(f"[TOTAL] New total: {updated_chapter.word_count:,} words")
+                click.echo(f"✅ Expanded {chapter_obj.title}")
+                click.echo(f"📝 Words added: {words_added:,}")
+                click.echo(f"📊 New total: {updated_chapter.word_count:,} words")
             else:
-                click.echo("[ERROR] Failed to save expanded content")
+                click.echo("❌ Failed to save expanded content")
                 sys.exit(1)
         else:
-            click.echo("[ERROR] Failed to generate expansion")
+            click.echo("❌ Failed to generate expansion")
             sys.exit(1)
         
     except Exception as e:
-        click.echo(f"[ERROR] Error expanding chapter: {e}", err=True)
+        click.echo(f"❌ Error expanding chapter: {e}", err=True)
         sys.exit(1)
 
 
@@ -834,7 +834,7 @@ def analyze_chapter(ctx, project_file, chapter, focus):
         
         # Check if chapter exists
         if chapter not in project.document.chapters:
-            click.echo(f"[ERROR] Chapter {chapter} not found")
+            click.echo(f"❌ Chapter {chapter} not found")
             sys.exit(1)
         
         chapter_obj = project.document.get_chapter(chapter)
@@ -846,8 +846,8 @@ def analyze_chapter(ctx, project_file, chapter, focus):
         claude_client = ClaudeClient()
         generator = ContentGenerator(claude_client)
         
-        click.echo(f"[AI] Analyzing {chapter_obj.title}...")
-        click.echo(f"[FOCUS] Focus areas: {', '.join(focus_areas)}")
+        click.echo(f"🤖 Analyzing {chapter_obj.title}...")
+        click.echo(f"🔍 Focus areas: {', '.join(focus_areas)}")
         
         # Analyze chapter
         async def analyze():
@@ -860,48 +860,48 @@ def analyze_chapter(ctx, project_file, chapter, focus):
         analysis = asyncio.run(analyze())
         
         if analysis:
-            click.echo(f"\n[ANALYSIS] Analysis Results for {chapter_obj.title}")
+            click.echo(f"\n📊 Analysis Results for {chapter_obj.title}")
             click.echo("=" * 50)
             
             if "overall_assessment" in analysis:
-                click.echo(f"[OVERALL] Overall: {analysis['overall_assessment']}")
+                click.echo(f"📝 Overall: {analysis['overall_assessment']}")
             
             if analysis.get("strengths"):
-                click.echo(f"\n[STRENGTHS] Strengths:")
+                click.echo(f"\n✅ Strengths:")
                 for strength in analysis["strengths"]:
-                    click.echo(f"  + {strength}")
+                    click.echo(f"  • {strength}")
             
             if analysis.get("areas_for_improvement"):
-                click.echo(f"\n[IMPROVEMENTS] Areas for Improvement:")
+                click.echo(f"\n⚠️  Areas for Improvement:")
                 for issue in analysis["areas_for_improvement"]:
-                    click.echo(f"  ! {issue}")
+                    click.echo(f"  • {issue}")
             
             if analysis.get("specific_suggestions"):
-                click.echo(f"\n[SUGGESTIONS] Specific Suggestions:")
+                click.echo(f"\n💡 Specific Suggestions:")
                 for suggestion in analysis["specific_suggestions"]:
                     priority = suggestion.get("priority", "medium")
                     area = suggestion.get("area", "general")
                     text = suggestion.get("suggestion", str(suggestion))
-                    priority_label = "[HIGH]" if priority == "high" else "[MED]" if priority == "medium" else "[LOW]"
-                    click.echo(f"  {priority_label} [{area}] {text}")
+                    priority_icon = "🔴" if priority == "high" else "🟡" if priority == "medium" else "🟢"
+                    click.echo(f"  {priority_icon} [{area}] {text}")
             
             if analysis.get("continuity_issues"):
-                click.echo(f"\n[CONTINUITY] Continuity Issues:")
+                click.echo(f"\n🔗 Continuity Issues:")
                 for issue in analysis["continuity_issues"]:
-                    click.echo(f"  * {issue}")
+                    click.echo(f"  • {issue}")
             
             if analysis.get("style_notes"):
-                click.echo(f"\n[STYLE] Style Notes: {analysis['style_notes']}")
+                click.echo(f"\n🎨 Style Notes: {analysis['style_notes']}")
             
             # If it's just raw text analysis
             if "analysis_text" in analysis and not any(k in analysis for k in ["strengths", "areas_for_improvement"]):
                 click.echo(f"\n{analysis['analysis_text']}")
         else:
-            click.echo("[ERROR] Failed to analyze chapter")
+            click.echo("❌ Failed to analyze chapter")
             sys.exit(1)
         
     except Exception as e:
-        click.echo(f"[ERROR] Error analyzing chapter: {e}", err=True)
+        click.echo(f"❌ Error analyzing chapter: {e}", err=True)
         sys.exit(1)
 
 
@@ -924,7 +924,7 @@ def check_continuity(ctx, project_file, chapters):
             try:
                 chapter_range = [int(x.strip()) for x in chapters.split(',')]
             except ValueError:
-                click.echo("[ERROR] Invalid chapters format. Use: 1,2,3")
+                click.echo("❌ Invalid chapters format. Use: 1,2,3")
                 sys.exit(1)
         
         # Initialize AI components
@@ -932,9 +932,9 @@ def check_continuity(ctx, project_file, chapters):
         generator = ContentGenerator(claude_client)
         
         if chapter_range:
-            click.echo(f"[AI] Checking continuity for chapters: {', '.join(map(str, chapter_range))}")
+            click.echo(f"🤖 Checking continuity for chapters: {', '.join(map(str, chapter_range))}")
         else:
-            click.echo(f"[AI] Checking continuity across all chapters")
+            click.echo(f"🤖 Checking continuity across all chapters")
         
         # Check continuity
         async def check():
@@ -946,48 +946,48 @@ def check_continuity(ctx, project_file, chapters):
         report = asyncio.run(check())
         
         if report:
-            click.echo(f"\n[CONTINUITY] Continuity Report")
+            click.echo(f"\n🔗 Continuity Report")
             click.echo("=" * 30)
             
             if "continuity_score" in report:
                 score = report["continuity_score"]
-                click.echo(f"[SCORE] Overall Score: {score}/10")
+                click.echo(f"📊 Overall Score: {score}/10")
             
             if report.get("issues_found"):
-                click.echo(f"\n[ISSUES] Issues Found:")
+                click.echo(f"\n⚠️  Issues Found:")
                 for issue in report["issues_found"]:
                     if isinstance(issue, dict):
                         issue_type = issue.get("type", "unknown")
                         chapter_num = issue.get("chapter", "?")
                         description = issue.get("description", str(issue))
                         severity = issue.get("severity", "medium")
-                        severity_label = "[HIGH]" if severity == "high" else "[MED]" if severity == "medium" else "[LOW]"
-                        click.echo(f"  {severity_label} Chapter {chapter_num} ({issue_type}): {description}")
+                        severity_icon = "🔴" if severity == "high" else "🟡" if severity == "medium" else "🟢"
+                        click.echo(f"  {severity_icon} Chapter {chapter_num} ({issue_type}): {description}")
                     else:
-                        click.echo(f"  * {issue}")
+                        click.echo(f"  • {issue}")
             
             if report.get("suggestions"):
-                click.echo(f"\n[SUGGESTIONS] Suggestions:")
+                click.echo(f"\n💡 Suggestions:")
                 for suggestion in report["suggestions"]:
-                    click.echo(f"  * {suggestion}")
+                    click.echo(f"  • {suggestion}")
             
             if report.get("character_consistency"):
-                click.echo(f"\n[CHARACTERS] Character Consistency:")
+                click.echo(f"\n👥 Character Consistency:")
                 for char_name, assessment in report["character_consistency"].items():
-                    click.echo(f"  * {char_name}: {assessment}")
+                    click.echo(f"  • {char_name}: {assessment}")
             
             if report.get("timeline_assessment"):
-                click.echo(f"\n[TIMELINE] Timeline: {report['timeline_assessment']}")
+                click.echo(f"\n⏰ Timeline: {report['timeline_assessment']}")
             
             # Raw analysis fallback
             if "analysis_text" in report and not report.get("issues_found"):
                 click.echo(f"\n{report['analysis_text']}")
         else:
-            click.echo("[ERROR] Failed to check continuity")
+            click.echo("❌ Failed to check continuity")
             sys.exit(1)
         
     except Exception as e:
-        click.echo(f"[ERROR] Error checking continuity: {e}", err=True)
+        click.echo(f"❌ Error checking continuity: {e}", err=True)
         sys.exit(1)
 
 
@@ -1008,7 +1008,7 @@ def suggest_next(ctx, project_file, num_suggestions):
         claude_client = ClaudeClient()
         generator = ContentGenerator(claude_client)
         
-        click.echo(f"[AI] Generating {num_suggestions} chapter suggestions...")
+        click.echo(f"🤖 Generating {num_suggestions} chapter suggestions...")
         
         # Get suggestions
         async def suggest():
@@ -1020,7 +1020,7 @@ def suggest_next(ctx, project_file, num_suggestions):
         suggestions = asyncio.run(suggest())
         
         if suggestions:
-            click.echo(f"\n[SUGGESTIONS] Chapter Suggestions")
+            click.echo(f"\n💡 Chapter Suggestions")
             click.echo("=" * 30)
             
             for i, suggestion in enumerate(suggestions, 1):
@@ -1030,7 +1030,7 @@ def suggest_next(ctx, project_file, num_suggestions):
                     summary = suggestion.get("summary", "No summary")
                     word_count = suggestion.get("estimated_word_count", "Unknown")
                     
-                    click.echo(f"\n[SUGGESTION {i}] Chapter {chapter_num}")
+                    click.echo(f"\n📖 Suggestion {i}: Chapter {chapter_num}")
                     click.echo(f"   Title: {title}")
                     click.echo(f"   Summary: {summary}")
                     
@@ -1045,13 +1045,48 @@ def suggest_next(ctx, project_file, num_suggestions):
                     
                     click.echo(f"   Est. Word Count: {word_count}")
                 else:
-                    click.echo(f"\n[SUGGESTION {i}] {suggestion}")
+                    click.echo(f"\n📖 Suggestion {i}: {suggestion}")
         else:
-            click.echo("[ERROR] Failed to generate suggestions")
+            click.echo("❌ Failed to generate suggestions")
             sys.exit(1)
         
     except Exception as e:
-        click.echo(f"[ERROR] Error generating suggestions: {e}", err=True)
+        click.echo(f"❌ Error generating suggestions: {e}", err=True)
+        sys.exit(1)
+def export(ctx, project_file, output_file, export_format):
+    """Export project to various formats"""
+    try:
+        project = ctx.obj['project_loader'].load_project(project_file)
+        
+        if export_format == 'markdown':
+            content = project.document.export_text()
+            # Convert to markdown format
+            markdown_content = f"# {project.document.title}\n\n"
+            markdown_content += f"**Author:** {project.document.author}\n\n"
+            
+            if project.document.synopsis:
+                markdown_content += f"## Synopsis\n\n{project.document.synopsis}\n\n"
+            
+            for chapter in project.document.get_chapters_sorted():
+                markdown_content += f"## {chapter.title}\n\n"
+                markdown_content += f"{chapter.content}\n\n"
+            
+            ctx.obj['file_handler'].write_file(output_file, markdown_content)
+            
+        elif export_format == 'text':
+            content = project.document.export_text()
+            ctx.obj['file_handler'].write_file(output_file, content)
+            
+        elif export_format == 'docx':
+            # Use the file handler's export functionality
+            ctx.obj['file_handler'].export_chapters_to_file(
+                project.document.chapters, output_file, 'docx'
+            )
+        
+        click.echo(f"✅ Exported to {output_file} ({export_format} format)")
+        
+    except Exception as e:
+        click.echo(f"❌ Error exporting project: {e}", err=True)
         sys.exit(1)
 
 
@@ -1066,19 +1101,19 @@ def search(ctx, project_file, query):
         results = project.document.search_content(query)
         
         if not results:
-            click.echo(f"[SEARCH] No results found for '{query}'")
+            click.echo(f"🔍 No results found for '{query}'")
             return
         
-        click.echo(f"[SEARCH] Found {len(results)} result(s) for '{query}':")
+        click.echo(f"🔍 Found {len(results)} result(s) for '{query}':")
         click.echo("=" * 50)
         
         for result in results:
-            click.echo(f"\n[CHAPTER] {result['chapter_title']}")
-            click.echo(f"[POSITION] Position: {result['position']}")
-            click.echo(f"[CONTEXT] Context: ...{result['context']}...")
+            click.echo(f"\n📖 {result['chapter_title']}")
+            click.echo(f"📍 Position: {result['position']}")
+            click.echo(f"📝 Context: ...{result['context']}...")
             
     except Exception as e:
-        click.echo(f"[ERROR] Error searching: {e}", err=True)
+        click.echo(f"❌ Error searching: {e}", err=True)
         sys.exit(1)
 
 
@@ -1090,7 +1125,7 @@ def wordcount(ctx, project_file):
     try:
         project = ctx.obj['project_loader'].load_project(project_file)
         
-        click.echo(f"\n[WORDCOUNT] Word Count Report: {project.title}")
+        click.echo(f"\n📊 Word Count Report: {project.title}")
         click.echo("=" * 60)
         
         total_words = 0
@@ -1118,7 +1153,7 @@ def wordcount(ctx, project_file):
             click.echo(f"{'Average per chapter':<40} {avg_chapter:>8,} words")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error calculating word count: {e}", err=True)
+        click.echo(f"❌ Error calculating word count: {e}", err=True)
         sys.exit(1)
 
 
@@ -1173,10 +1208,10 @@ def import_text(ctx, file_path, project_file):
                 imported_count += 1
         
         ctx.obj['project_loader'].save_project(project, project_file)
-        click.echo(f"[SUCCESS] Imported {imported_count} chapters from {file_path}")
+        click.echo(f"✅ Imported {imported_count} chapters from {file_path}")
         
     except Exception as e:
-        click.echo(f"[ERROR] Error importing text: {e}", err=True)
+        click.echo(f"❌ Error importing text: {e}", err=True)
         sys.exit(1)
 
 
