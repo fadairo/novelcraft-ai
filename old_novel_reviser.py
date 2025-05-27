@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-novel_reviser.py - Complete Novel Revision Automation System (Windows-Compatible)
+novel_reviser.py - Complete Novel Revision Automation System
 
 This script automates the complete revision workflow for an entire novel:
 1. Novel-wide alignment analysis
@@ -9,7 +9,6 @@ This script automates the complete revision workflow for an entire novel:
 4. Final alignment check and recommendations
 
 Acts as a literary editor using the user's inspirations and genre requirements.
-Windows-compatible version with improved encoding handling.
 """
 
 import os
@@ -18,22 +17,12 @@ import glob
 import json
 import argparse
 import datetime
-import codecs
-import sys
 from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 import anthropic
 
-# Set UTF-8 encoding for Windows
-if sys.platform.startswith('win'):
-    import locale
-    try:
-        locale.setlocale(locale.LC_ALL, 'en_US.UTF-8')
-    except:
-        pass
-
 class NovelReviser:
-    """Complete novel revision automation system with Windows encoding support."""
+    """Complete novel revision automation system."""
     
     def __init__(self, api_key: str = None):
         """Initialize with Anthropic API key."""
@@ -48,59 +37,10 @@ class NovelReviser:
         self.analysis_cache = {}
         self.use_cost_effective_model = True  # Use Sonnet instead of Opus for most tasks
     
-    def _safe_read_file(self, file_path: str) -> str:
-        """Safely read a file with multiple encoding attempts."""
-        encodings = ['utf-8', 'utf-8-sig', 'cp1252', 'latin1', 'ascii']
-        
-        for encoding in encodings:
-            try:
-                with open(file_path, 'r', encoding=encoding, errors='replace') as f:
-                    content = f.read()
-                print(f"    Read {os.path.basename(file_path)} with {encoding} encoding")
-                return content
-            except (UnicodeDecodeError, UnicodeError):
-                continue
-        
-        # Last resort - read as binary and decode with errors
-        try:
-            with open(file_path, 'rb') as f:
-                raw_content = f.read()
-                content = raw_content.decode('utf-8', errors='replace')
-                print(f"    Read {os.path.basename(file_path)} with error handling")
-                return content
-        except Exception as e:
-            print(f"    Warning: Could not read {file_path}: {e}")
-            return ""
-    
-    def _safe_write_file(self, file_path: str, content: str) -> bool:
-        """Safely write a file with UTF-8 encoding."""
-        try:
-            # Ensure directory exists
-            os.makedirs(os.path.dirname(file_path), exist_ok=True)
-            
-            # Clean content of problematic characters if needed
-            cleaned_content = content.encode('utf-8', errors='replace').decode('utf-8')
-            
-            with open(file_path, 'w', encoding='utf-8', errors='replace', newline='\n') as f:
-                f.write(cleaned_content)
-            return True
-        except Exception as e:
-            print(f"    Error writing {file_path}: {e}")
-            # Try with simpler encoding
-            try:
-                # Remove problematic characters and try again
-                ascii_content = content.encode('ascii', errors='replace').decode('ascii')
-                with open(file_path, 'w', encoding='ascii', errors='replace') as f:
-                    f.write(ascii_content)
-                print(f"    Wrote {file_path} with ASCII fallback")
-                return True
-            except:
-                return False
-    
     def load_project(self, project_dir: str):
         """Load project files and context."""
         self.project_dir = project_dir
-        print(f"Loading project from: {project_dir}")
+        print(f"📖 Loading project from: {project_dir}")
         
         # Load project context
         self.project_context = self._load_project_files()
@@ -114,9 +54,9 @@ class NovelReviser:
         # Extract project metadata
         self._extract_project_metadata()
         
-        print(f"Loaded {len(self.chapters)} chapters")
-        print(f"Genre: {self.genre}")
-        print(f"Literary inspirations: {'Found' if self.inspirations else 'None'}")
+        print(f"✅ Loaded {len(self.chapters)} chapters")
+        print(f"📚 Genre: {self.genre}")
+        print(f"🎨 Literary inspirations: {'Found' if self.inspirations else 'None'}")
     
     def _load_project_files(self) -> Dict[str, str]:
         """Load synopsis, outline, and character files."""
@@ -132,13 +72,13 @@ class NovelReviser:
             for name in possible_names:
                 file_path = os.path.join(self.project_dir, name)
                 if os.path.exists(file_path):
-                    content = self._safe_read_file(file_path)
-                    files[file_type] = content
-                    print(f"  Found {file_type}: {name}")
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        files[file_type] = f.read()
+                    print(f"  ✓ {file_type}: {name}")
                     break
             else:
                 files[file_type] = ""
-                print(f"  Missing {file_type}: not found")
+                print(f"  ⚠ {file_type}: not found")
         
         return files
     
@@ -146,7 +86,8 @@ class NovelReviser:
         """Load literary inspirations."""
         inspiration_file = os.path.join(self.project_dir, "inspiration.md")
         if os.path.exists(inspiration_file):
-            return self._safe_read_file(inspiration_file)
+            with open(inspiration_file, 'r', encoding='utf-8') as f:
+                return f.read()
         return ""
     
     def _load_all_chapters(self) -> Dict[int, Dict[str, str]]:
@@ -161,14 +102,8 @@ class NovelReviser:
             if not os.path.exists(search_dir):
                 continue
             
-            print(f"  Searching in: {search_dir}")
-            
-            # Find chapter files with expanded patterns
-            patterns = [
-                'chapter_*.md', 'chapter*.md', 'ch_*.md',
-                '*_chapter_*.md', 'Chapter*.md', 'Ch*.md'
-            ]
-            
+            # Find chapter files
+            patterns = ['chapter_*.md', 'chapter*.md', 'ch_*.md']
             for pattern in patterns:
                 files = glob.glob(os.path.join(search_dir, pattern))
                 for file_path in files:
@@ -178,41 +113,27 @@ class NovelReviser:
                     
                     # Extract chapter number
                     chapter_num = self._extract_chapter_number(file_path)
-                    if chapter_num is not None:
-                        content = self._safe_read_file(file_path)
-                        if content:  # Only add if content was successfully read
-                            chapters[chapter_num] = {
-                                'file_path': file_path,
-                                'content': content,
-                                'word_count': len(content.split())
-                            }
-                            print(f"    Found Chapter {chapter_num}: {os.path.basename(file_path)}")
+                    if chapter_num:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                        
+                        chapters[chapter_num] = {
+                            'file_path': file_path,
+                            'content': content,
+                            'word_count': len(content.split())
+                        }
         
         return chapters
     
     def _extract_chapter_number(self, file_path: str) -> Optional[int]:
-        """Extract chapter number from filename with expanded patterns."""
+        """Extract chapter number from filename."""
         filename = os.path.basename(file_path)
-        
-        # Enhanced patterns to catch more naming conventions
-        patterns = [
-            r'(\d+)_chapter_\d+',           # 01_chapter_1.md
-            r'chapter[_\s]*(\d+)',          # chapter_1.md, chapter 1.md
-            r'ch[_\s]*(\d+)',               # ch_1.md, ch 1.md
-            r'^(\d+)[_\s]*',                # 01.md, 1.md
-            r'(\d+)\.md$',                  # 1.md
-            r'chapter[_\s]*(\d+)',          # Chapter_1.md, Chapter 1.md (case insensitive)
-        ]
+        patterns = [r'chapter[_\s]*(\d+)', r'ch[_\s]*(\d+)', r'(\d+)']
         
         for pattern in patterns:
             match = re.search(pattern, filename, re.IGNORECASE)
             if match:
-                try:
-                    return int(match.group(1))
-                except ValueError:
-                    continue
-        
-        print(f"    Could not extract chapter number from: {filename}")
+                return int(match.group(1))
         return None
     
     def _get_model_for_task(self, task_complexity: str = "medium") -> str:
@@ -224,9 +145,9 @@ class NovelReviser:
         model_map = {
             "simple": "claude-3-5-sonnet-20241022",    # For simple tasks
             "medium": "claude-3-5-sonnet-20241022",    # For most tasks
-            "complex": "claude-opus-4-20250514",        # Only for most complex tasks
+            "complex": "claude-opus-4-20250514"        # Only for most complex tasks
         }
-        return model_map.get(task_complexity, "claude-opus-4-20250514")
+        return model_map.get(task_complexity, "claude-3-5-sonnet-20241022")
     
     def _chunk_content_for_analysis(self, content: str, max_chunk_size: int = 15000) -> List[str]:
         """Split content into manageable chunks to avoid token limits and reduce costs."""
@@ -269,16 +190,35 @@ class NovelReviser:
                     if potential_title and len(potential_title) < 100:
                         self.novel_title = potential_title
                         break
+        """Extract project metadata from context."""
+        # Try to determine genre and title from project files
+        if self.project_context.get('synopsis'):
+            synopsis = self.project_context['synopsis']
+            if any(word in synopsis.lower() for word in ['spy', 'intelligence', 'espionage']):
+                self.genre = "Literary Spy Fiction"
+            elif any(word in synopsis.lower() for word in ['mystery', 'detective']):
+                self.genre = "Literary Mystery"
+        
+        # Extract title if available
+        if 'title' in self.project_context.get('synopsis', '').lower():
+            lines = self.project_context['synopsis'].split('\n')
+            for line in lines:
+                if 'title' in line.lower() or line.startswith('#'):
+                    potential_title = re.sub(r'^#+\s*|title:\s*', '', line, flags=re.IGNORECASE).strip()
+                    if potential_title and len(potential_title) < 100:
+                        self.novel_title = potential_title
+                        break
     
     def analyze_novel_alignment(self) -> str:
         """Perform comprehensive novel-wide alignment analysis with cost optimization."""
-        print("\nAnalyzing novel-wide alignment...")
+        print("\n🔍 Analyzing novel-wide alignment...")
         
         # Check if analysis already exists
         analysis_file = os.path.join(self.project_dir, "novel_alignment_analysis.md")
         if os.path.exists(analysis_file):
-            print("Using existing novel alignment analysis")
-            return self._safe_read_file(analysis_file)
+            print("✅ Using existing novel alignment analysis")
+            with open(analysis_file, 'r', encoding='utf-8') as f:
+                return f.read()
         
         # Prepare efficient chapter summaries (limit content to reduce tokens)
         chapter_summaries = []
@@ -294,11 +234,11 @@ class NovelReviser:
             chapter_summaries.append(f"**Chapter {chapter_num}** ({word_count} words):\n{content_preview}")
         
         # Split into chunks if too large
-        summary_text = '\n'.join(chapter_summaries)
+        summary_text = chr(10).join(chapter_summaries)
         chunks = self._chunk_content_for_analysis(summary_text, max_chunk_size=12000)
         
         if len(chunks) > 1:
-            print(f"  Processing {len(chunks)} content chunks for cost efficiency")
+            print(f"  📝 Processing {len(chunks)} content chunks for cost efficiency")
             
             # Analyze chunks separately then synthesize
             chunk_analyses = []
@@ -314,12 +254,9 @@ class NovelReviser:
             analysis = self._analyze_complete_novel(summary_text, total_words)
         
         # Save analysis
-        success = self._save_analysis(analysis, "novel_alignment_analysis.md")
-        if success:
-            print("Novel alignment analysis complete")
-        else:
-            print("Warning: Could not save analysis file")
+        self._save_analysis(analysis, "novel_alignment_analysis.md")
         
+        print("✅ Novel alignment analysis complete")
         return analysis
     
     def _analyze_novel_chunk(self, chunk_content: str, chunk_num: int, total_chunks: int, total_words: int) -> str:
@@ -352,8 +289,8 @@ Keep analysis focused and concise. This will be combined with other chunk analys
 
         try:
             response = self.client.messages.create(
-                model=self._get_model_for_task("medium"),
-                max_tokens=1500,
+                model=self._get_model_for_task("medium"),  # Cost-effective model
+                max_tokens=1500,  # Reduced token limit
                 messages=[{"role": "user", "content": prompt}]
             )
             return response.content[0].text
@@ -388,7 +325,7 @@ Focus on actionable recommendations for novel-wide improvements."""
 
         try:
             response = self.client.messages.create(
-                model=self._get_model_for_task("complex"),
+                model=self._get_model_for_task("complex"),  # Use Opus for synthesis
                 max_tokens=3000,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -469,7 +406,7 @@ Focus on creating a cohesive, literary-quality novel that honors both the {self.
 
         try:
             response = self.client.messages.create(
-                model=self._get_model_for_task("complex"),
+                model=self._get_model_for_task("complex"),  # Use Opus for comprehensive analysis
                 max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -479,7 +416,7 @@ Focus on creating a cohesive, literary-quality novel that honors both the {self.
     
     def create_revised_project_files(self, alignment_analysis: str) -> Dict[str, str]:
         """Create revised outline, synopsis, and character list based on analysis."""
-        print("\nCreating revised project files...")
+        print("\n📝 Creating revised project files...")
         
         revised_files = {}
         
@@ -495,7 +432,7 @@ Focus on creating a cohesive, literary-quality novel that honors both the {self.
         # Save revised files
         self._save_revised_project_files(revised_files)
         
-        print("Revised project files created")
+        print("✅ Revised project files created")
         return revised_files
     
     def _create_revised_synopsis(self, analysis: str) -> str:
@@ -523,7 +460,7 @@ The synopsis should be 2-3 paragraphs, literary in tone, and capture both plot a
 
         try:
             response = self.client.messages.create(
-                model=self._get_model_for_task("complex"),
+                model="claude-opus-4-20250514",
                 max_tokens=1500,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -571,7 +508,7 @@ Be specific and actionable for guiding revisions."""
 
         try:
             response = self.client.messages.create(
-                model=self._get_model_for_task("complex"),
+                model="claude-opus-4-20250514",
                 max_tokens=3000,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -612,7 +549,7 @@ Focus on characters that actually appear significantly in the manuscript."""
 
         try:
             response = self.client.messages.create(
-                model=self._get_model_for_task("complex"),
+                model="claude-opus-4-20250514",
                 max_tokens=2500,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -622,13 +559,14 @@ Focus on characters that actually appear significantly in the manuscript."""
     
     def create_chapter_revision_plans(self, alignment_analysis: str, revised_context: Dict[str, str]) -> Dict[int, str]:
         """Create revision plans for all chapters with cost optimization."""
-        print(f"\nCreating revision plans for {len(self.chapters)} chapters...")
+        print(f"\n📋 Creating revision plans for {len(self.chapters)} chapters...")
         
         revision_plans = {}
         
         # Create revision plans directory
         plans_dir = os.path.join(self.project_dir, "revision_plans")
-        os.makedirs(plans_dir, exist_ok=True)
+        if not os.path.exists(plans_dir):
+            os.makedirs(plans_dir)
         
         # Process chapters in batches for cost efficiency
         batch_size = 3  # Process multiple chapters per API call
@@ -647,14 +585,12 @@ Focus on characters that actually appear significantly in the manuscript."""
                 plan_path = os.path.join(plans_dir, plan_filename)
                 
                 if os.path.exists(plan_path):
-                    content = self._safe_read_file(plan_path)
-                    if content:
+                    with open(plan_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
                         plan_content = content.split("---")[-1].strip() if "---" in content else content
                         existing_plans[chapter_num] = plan_content
                         revision_plans[chapter_num] = plan_content
-                        print(f"    Using existing plan for Chapter {chapter_num}")
-                    else:
-                        missing_chapters.append(chapter_num)
+                    print(f"    ✓ Using existing plan for Chapter {chapter_num}")
                 else:
                     missing_chapters.append(chapter_num)
             
@@ -671,18 +607,14 @@ Focus on characters that actually appear significantly in the manuscript."""
                     plan_filename = f"chapter_{chapter_num:02d}_revision_plan.md"
                     plan_path = os.path.join(plans_dir, plan_filename)
                     
-                    plan_content = f"# REVISION PLAN FOR CHAPTER {chapter_num}\n\n"
-                    plan_content += f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                    plan_content += f"**Original word count:** {self.chapters[chapter_num]['word_count']} words\n\n"
-                    plan_content += "---\n\n"
-                    plan_content += plan
-                    
-                    if self._safe_write_file(plan_path, plan_content):
-                        print(f"    Saved plan for Chapter {chapter_num}")
-                    else:
-                        print(f"    Warning: Could not save plan for Chapter {chapter_num}")
+                    with open(plan_path, 'w', encoding='utf-8') as f:
+                        f.write(f"# REVISION PLAN FOR CHAPTER {chapter_num}\n\n")
+                        f.write(f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                        f.write(f"**Original word count:** {self.chapters[chapter_num]['word_count']} words\n\n")
+                        f.write("---\n\n")
+                        f.write(plan)
         
-        print("All chapter revision plans created")
+        print("✅ All chapter revision plans created")
         return revision_plans
     
     def _create_chapter_plans_batch(self, chapter_nums: List[int], alignment_analysis: str, revised_context: Dict[str, str]) -> Dict[int, str]:
@@ -759,7 +691,7 @@ Keep plans focused and actionable."""
             return plans
             
         except Exception as e:
-            print(f"    Error creating batch plans: {e}")
+            print(f"    ❌ Error creating batch plans: {e}")
             # Fallback to individual creation
             plans = {}
             for chapter_num in chapter_nums:
@@ -843,8 +775,8 @@ Focus on creating literary fiction quality while honoring {self.genre} genre con
 
         try:
             response = self.client.messages.create(
-                model=self._get_model_for_task("medium"),
-                max_tokens=2500,
+                model=self._get_model_for_task("medium"),  # Cost-effective model
+                max_tokens=2500,  # Increased for more detailed plans
                 messages=[{"role": "user", "content": prompt}]
             )
             return response.content[0].text
@@ -853,13 +785,14 @@ Focus on creating literary fiction quality while honoring {self.genre} genre con
     
     def revise_all_chapters(self, revision_plans: Dict[int, str], revised_context: Dict[str, str]) -> Dict[int, str]:
         """Revise all chapters based on their revision plans with cost optimization."""
-        print(f"\nRevising {len(self.chapters)} chapters...")
+        print(f"\n✍️ Revising {len(self.chapters)} chapters...")
         
         revised_chapters = {}
         
         # Create revised chapters directory
         revised_dir = os.path.join(self.project_dir, "revised")
-        os.makedirs(revised_dir, exist_ok=True)
+        if not os.path.exists(revised_dir):
+            os.makedirs(revised_dir)
         
         for chapter_num in sorted(self.chapters.keys()):
             print(f"  Revising Chapter {chapter_num}...")
@@ -871,15 +804,15 @@ Focus on creating literary fiction quality while honoring {self.genre} genre con
             revised_path = os.path.join(revised_dir, revised_filename)
             
             if os.path.exists(revised_path):
-                print(f"    Using existing revised chapter")
-                revised_content = self._safe_read_file(revised_path)
-                if revised_content:
-                    revised_chapters[chapter_num] = revised_content
-                    
-                    revised_words = len(revised_content.split())
-                    original_words = self.chapters[chapter_num]['word_count']
-                    print(f"    Words: {original_words} -> {revised_words}")
-                    continue
+                print(f"    ✓ Using existing revised chapter")
+                with open(revised_path, 'r', encoding='utf-8') as f:
+                    revised_content = f.read()
+                revised_chapters[chapter_num] = revised_content
+                
+                revised_words = len(revised_content.split())
+                original_words = self.chapters[chapter_num]['word_count']
+                print(f"    Words: {original_words} → {revised_words}")
+                continue
             
             # Create new revision
             revised_content = self._revise_single_chapter(
@@ -889,17 +822,15 @@ Focus on creating literary fiction quality while honoring {self.genre} genre con
             revised_chapters[chapter_num] = revised_content
             
             # Save revised chapter
-            if self._safe_write_file(revised_path, revised_content):
-                print(f"    Saved revised chapter")
-            else:
-                print(f"    Warning: Could not save revised chapter")
+            with open(revised_path, 'w', encoding='utf-8') as f:
+                f.write(revised_content)
             
             # Report progress
             original_words = self.chapters[chapter_num]['word_count']
             revised_words = len(revised_content.split())
-            print(f"    Words: {original_words} -> {revised_words}")
+            print(f"    Words: {original_words} → {revised_words}")
         
-        print("All chapters revised")
+        print("✅ All chapters revised")
         return revised_chapters
     
     def _revise_single_chapter(self, chapter_num: int, revision_plan: str, revised_context: Dict[str, str]) -> str:
@@ -973,8 +904,8 @@ Return the complete revised chapter ready for publication. The chapter must be f
 
         try:
             response = self.client.messages.create(
-                model=self._get_model_for_task("complex"),
-                max_tokens=12000,
+                model=self._get_model_for_task("complex"),  # Use Opus for chapter revision
+                max_tokens=12000,  # Increased significantly to ensure full chapters
                 messages=[{"role": "user", "content": prompt}]
             )
             
@@ -984,18 +915,18 @@ Return the complete revised chapter ready for publication. The chapter must be f
             # Check if the chapter was significantly shortened and warn
             revised_word_count = len(cleaned_text.split())
             if revised_word_count < original_word_count * 0.9:
-                print(f"    Warning: Chapter {chapter_num} was shortened ({original_word_count} -> {revised_word_count} words)")
+                print(f"    ⚠ Warning: Chapter {chapter_num} was shortened ({original_word_count} → {revised_word_count} words)")
                 print(f"    This may indicate the AI hit token limits. Consider using --force-refresh for better results.")
             
             return cleaned_text
             
         except Exception as e:
-            print(f"    Error revising Chapter {chapter_num}: {e}")
+            print(f"    ❌ Error revising Chapter {chapter_num}: {e}")
             return chapter['content']  # Return original on error
     
     def final_alignment_check(self, revised_chapters: Dict[int, str], revised_context: Dict[str, str]) -> str:
         """Perform final alignment check and suggest further improvements."""
-        print("\nPerforming final alignment check...")
+        print("\n🔍 Performing final alignment check...")
         
         # Calculate statistics
         total_revised_words = sum(len(content.split()) for content in revised_chapters.values())
@@ -1075,7 +1006,7 @@ Focus on the path to creating a distinguished work of {self.genre} that honors b
 
         try:
             response = self.client.messages.create(
-                model=self._get_model_for_task("complex"),
+                model="claude-opus-4-20250514",
                 max_tokens=3000,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -1083,16 +1014,13 @@ Focus on the path to creating a distinguished work of {self.genre} that honors b
             final_analysis = response.content[0].text
             
             # Save final analysis
-            success = self._save_analysis(final_analysis, "final_alignment_check.md")
-            if success:
-                print("Final alignment check complete")
-            else:
-                print("Warning: Could not save final analysis")
+            self._save_analysis(final_analysis, "final_alignment_check.md")
             
+            print("✅ Final alignment check complete")
             return final_analysis
             
         except Exception as e:
-            print(f"Error in final alignment check: {e}")
+            print(f"❌ Error in final alignment check: {e}")
             return f"Error in final analysis: {e}"
     
     def _clean_ai_commentary(self, text: str) -> str:
@@ -1111,19 +1039,15 @@ Focus on the path to creating a distinguished work of {self.genre} that honors b
         
         return re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned).strip()
     
-    def _save_analysis(self, content: str, filename: str) -> bool:
+    def _save_analysis(self, content: str, filename: str):
         """Save analysis to file."""
         output_path = os.path.join(self.project_dir, filename)
-        
-        file_content = f"# {filename.replace('_', ' ').replace('.md', '').title()}\n\n"
-        file_content += f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        file_content += "---\n\n"
-        file_content += content
-        
-        success = self._safe_write_file(output_path, file_content)
-        if success:
-            print(f"  Saved: {output_path}")
-        return success
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(f"# {filename.replace('_', ' ').replace('.md', '').title()}\n\n")
+            f.write(f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write("---\n\n")
+            f.write(content)
+        print(f"  📄 Saved: {output_path}")
     
     def _save_revised_project_files(self, revised_files: Dict[str, str]):
         """Save revised project files."""
@@ -1137,17 +1061,17 @@ Focus on the path to creating a distinguished work of {self.genre} that honors b
             filename = file_mapping[file_type]
             output_path = os.path.join(self.project_dir, filename)
             
-            file_content = f"# Revised {file_type.title()}\n\n"
-            file_content += f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-            file_content += "---\n\n"
-            file_content += content
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(f"# Revised {file_type.title()}\n\n")
+                f.write(f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                f.write("---\n\n")
+                f.write(content)
             
-            if self._safe_write_file(output_path, file_content):
-                print(f"  Saved: {output_path}")
+            print(f"  📄 Saved: {output_path}")
     
     def generate_revision_report(self, alignment_analysis: str, final_analysis: str) -> str:
         """Generate comprehensive revision report."""
-        print("\nGenerating revision report...")
+        print("\n📊 Generating revision report...")
         
         report = f"""# Novel Revision Report: {self.novel_title}
 
@@ -1215,25 +1139,24 @@ This revision cycle focused on elevating the work from genre fiction to literary
         
         # Save report
         report_path = os.path.join(self.project_dir, "revision_report.md")
-        if self._safe_write_file(report_path, report):
-            print(f"Revision report saved: {report_path}")
-        else:
-            print("Warning: Could not save revision report")
+        with open(report_path, 'w', encoding='utf-8') as f:
+            f.write(report)
         
+        print(f"✅ Revision report saved: {report_path}")
         return report
 
 def main():
     """Main function for command-line usage."""
     parser = argparse.ArgumentParser(
-        description="Complete novel revision automation system (Windows-compatible)",
+        description="Complete novel revision automation system",
         epilog="""
 Examples:
   # Complete novel revision workflow
-  python novel_reviser.py clowns
+  python novel_reviser.py glasshouse
   
   # Specific steps only
-  python novel_reviser.py clowns --analysis-only
-  python novel_reviser.py clowns --revisions-only
+  python novel_reviser.py glasshouse --analysis-only
+  python novel_reviser.py glasshouse --revisions-only
         """
     )
     parser.add_argument(
@@ -1268,14 +1191,6 @@ Examples:
     
     args = parser.parse_args()
     
-    # Set console encoding for Windows
-    if sys.platform.startswith('win'):
-        try:
-            sys.stdout.reconfigure(encoding='utf-8')
-            sys.stderr.reconfigure(encoding='utf-8')
-        except:
-            pass
-    
     # Initialize reviser
     try:
         reviser = NovelReviser()
@@ -1283,28 +1198,28 @@ Examples:
         # Configure cost optimization
         if args.cost_optimize:
             reviser.use_cost_effective_model = True
-            print("Using cost-optimized approach")
+            print("💰 Using cost-optimized approach")
         else:
             reviser.use_cost_effective_model = False
-            print("Using premium models for highest quality")
+            print("🚀 Using premium models for highest quality")
         
         # Handle force refresh
         if args.force_refresh:
-            print("Force refresh enabled - will regenerate all files")
+            print("🔄 Force refresh enabled - will regenerate all files")
     except Exception as e:
-        print(f"Error initializing AI client: {e}")
+        print(f"❌ Error initializing AI client: {e}")
         print("Make sure ANTHROPIC_API_KEY environment variable is set")
         return 1
     
     try:
-        print(f"Starting novel revision automation for: {args.project_dir}")
+        print(f"🚀 Starting novel revision automation for: {args.project_dir}")
         print("="*60)
         
         # Load project
         reviser.load_project(args.project_dir)
         
         if not reviser.chapters:
-            print("No chapters found in project")
+            print("❌ No chapters found in project")
             return 1
         
         # Step 1: Novel alignment analysis
@@ -1312,16 +1227,17 @@ Examples:
             alignment_analysis = reviser.analyze_novel_alignment()
             
             if args.analysis_only:
-                print("\nAnalysis complete. Check the generated reports.")
+                print("\n✅ Analysis complete. Check the generated reports.")
                 return 0
         else:
             # Load existing analysis
             analysis_file = os.path.join(args.project_dir, "novel_alignment_analysis.md")
             if os.path.exists(analysis_file):
-                alignment_analysis = reviser._safe_read_file(analysis_file)
-                print("Using existing alignment analysis")
+                with open(analysis_file, 'r', encoding='utf-8') as f:
+                    alignment_analysis = f.read()
+                print("✅ Using existing alignment analysis")
             else:
-                print("No existing analysis found. Run without --revisions-only first.")
+                print("❌ No existing analysis found. Run without --revisions-only first.")
                 return 1
         
         # Step 2: Create revised project files
@@ -1342,18 +1258,18 @@ Examples:
         reviser.generate_revision_report(alignment_analysis, final_analysis)
         
         print("\n" + "="*60)
-        print("NOVEL REVISION COMPLETE!")
+        print("🎉 NOVEL REVISION COMPLETE!")
         print("="*60)
-        print(f"Processed: {len(reviser.chapters)} chapters")
-        print(f"Created: Revised project files, revision plans, and chapters")
-        print(f"Reports: Comprehensive analysis and final assessment")
-        print(f"Location: {args.project_dir}")
+        print(f"📚 Processed: {len(reviser.chapters)} chapters")
+        print(f"📄 Created: Revised project files, revision plans, and chapters")
+        print(f"📊 Reports: Comprehensive analysis and final assessment")
+        print(f"📁 Location: {args.project_dir}")
         print("\nCheck the revision_report.md for a complete summary of improvements made.")
         
         return 0
         
     except Exception as e:
-        print(f"Error during novel revision: {e}")
+        print(f"❌ Error during novel revision: {e}")
         return 1
 
 if __name__ == "__main__":
