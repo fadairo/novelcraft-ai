@@ -41,7 +41,6 @@ class SingleChapterReviser:
         self.project_dir = None
         self.chapter_num = None
         self.target_word_count = None
-        self.context_chapters = []  # Custom context chapters
         self.use_cost_effective_model = True
         
         # Project context
@@ -107,11 +106,10 @@ class SingleChapterReviser:
         # Should never reach here, but just in case
         raise Exception("Max retries exceeded")
     
-    def load_project_context(self, project_dir: str, chapter_num: int, context_chapters: list = None):
+    def load_project_context(self, project_dir: str, chapter_num: int):
         """Load project context and target chapter."""
         self.project_dir = project_dir
         self.chapter_num = chapter_num
-        self.context_chapters = context_chapters or []
         
         print(f"Loading project context from: {project_dir}")
         print(f"Target chapter: {chapter_num}")
@@ -125,12 +123,8 @@ class SingleChapterReviser:
         if not self.current_chapter:
             raise ValueError(f"Chapter {chapter_num} not found")
         
-        # Load context chapters (either custom or adjacent)
-        if self.context_chapters:
-            self.adjacent_chapters = self._load_context_chapters(self.context_chapters)
-            print(f"Custom context chapters: {self.context_chapters}")
-        else:
-            self.adjacent_chapters = self._load_adjacent_chapters(chapter_num)
+        # Load adjacent chapters for context
+        self.adjacent_chapters = self._load_adjacent_chapters(chapter_num)
         
         print(f"Loaded chapter {chapter_num}: {self.current_chapter['word_count']} words")
         print(f"Context chapters: {list(self.adjacent_chapters.keys())}")
@@ -196,27 +190,6 @@ class SingleChapterReviser:
         
         return {}
     
-    def _load_context_chapters(self, context_chapter_nums: list) -> Dict[int, str]:
-        """Load specific chapters for context."""
-        context = {}
-        
-        for chapter_num in context_chapter_nums:
-            if chapter_num != self.chapter_num:  # Don't load the target chapter as context
-                chapter = self._load_chapter(chapter_num)
-                if chapter:
-                    # For consistency checking, we want more content than adjacent chapters
-                    # But still truncate very long chapters to manage token usage
-                    content = chapter['content']
-                    if len(content) > 2000:
-                        # Keep more content for consistency checking
-                        content = content[:2000] + "..."
-                    context[chapter_num] = content
-                    print(f"  Loaded context Chapter {chapter_num}: {len(content.split())} words")
-                else:
-                    print(f"  Warning: Context Chapter {chapter_num} not found")
-        
-        return context
-    
     def _load_adjacent_chapters(self, chapter_num: int) -> Dict[int, str]:
         """Load adjacent chapters for context."""
         adjacent = {}
@@ -242,17 +215,12 @@ class SingleChapterReviser:
             print("Using existing chapter analysis")
             return self._safe_read_file(analysis_file)
         
-        # Build context for adjacent/context chapters
+        # Build context for adjacent chapters
         context_text = ""
         if self.adjacent_chapters:
-            if self.context_chapters:
-                context_text = "\n\nCONTEXT CHAPTERS FOR CONSISTENCY:\n"
-                for chapter_num, content in self.adjacent_chapters.items():
-                    context_text += f"\nChapter {chapter_num} (for consistency reference):\n{content}\n"
-            else:
-                context_text = "\n\nADJACENT CHAPTERS CONTEXT:\n"
-                for adj_num, content in self.adjacent_chapters.items():
-                    context_text += f"\nChapter {adj_num} (excerpt):\n{content}\n"
+            context_text = "\n\nADJACENT CHAPTERS CONTEXT:\n"
+            for adj_num, content in self.adjacent_chapters.items():
+                context_text += f"\nChapter {adj_num} (excerpt):\n{content}\n"
         
         prompt = f"""You are a professional literary editor analyzing Chapter {self.chapter_num} for revision opportunities.
 
@@ -299,13 +267,6 @@ Analyze this chapter for:
 - Connection to adjacent chapters
 - Missing story elements
 
-## CONSISTENCY CHECKING
-- Character names, ages, and traits consistency with context chapters
-- Timeline and chronological consistency
-- Plot details and factual consistency
-- Setting and world-building consistency
-- Dialogue voice and speech pattern consistency
-
 ## EXPANSION OPPORTUNITIES
 - Scenes that need more development
 - Character moments that could be deeper
@@ -318,12 +279,11 @@ Provide concrete, actionable suggestions for:
 2. Character development enhancements  
 3. Literary quality upgrades
 4. Content expansion opportunities
-5. Consistency fixes with context chapters
-6. Technical fixes needed
+5. Technical fixes needed
 
 Current word count: {self.current_chapter['word_count']} words
 
-Focus on actionable improvements that will enhance both literary quality and story effectiveness. Pay special attention to maintaining consistency with the provided context chapters."""
+Focus on actionable improvements that will enhance both literary quality and story effectiveness."""
 
         try:
             def make_request():
@@ -390,12 +350,6 @@ Create a comprehensive revision plan that addresses:
 - Dialogue improvements and subtext
 - Character interiority expansion
 - Relationship dynamics to explore
-
-## CONSISTENCY REQUIREMENTS
-- Ensure character names, ages, and descriptions match context chapters
-- Maintain timeline consistency with referenced chapters
-- Keep plot details and facts consistent
-- Preserve character voice and dialogue patterns
 
 ## STRUCTURAL IMPROVEMENTS
 - Scene organization and transitions
@@ -852,11 +806,8 @@ Examples:
   # Revise chapter 3 to specific word count
   python single_chapter_reviser.py clowns --chapter 3 --target-words 3000
   
-  # Revise with specific chapters for consistency context
-  python single_chapter_reviser.py clowns --chapter 5 --context-chapters 1,3,4 --target-words 2500
-  
-  # Cost-optimized revision with context
-  python single_chapter_reviser.py clowns --chapter 8 --context-chapters 2,6,7 --cost-optimize --target-words 2500
+  # Cost-optimized revision
+  python single_chapter_reviser.py clowns --chapter 1 --cost-optimize --target-words 2500
         """
     )
     parser.add_argument(
@@ -880,11 +831,6 @@ Examples:
         help="Use cost-optimized approach (Sonnet for all tasks)"
     )
     parser.add_argument(
-        "--context-chapters",
-        type=str,
-        help="Comma-separated list of chapter numbers to use for consistency context (e.g., '1,3,7')"
-    )
-    parser.add_argument(
         "--analysis-only",
         action="store_true",
         help="Only perform analysis and create revision plan, don't revise"
@@ -899,16 +845,6 @@ Examples:
             sys.stderr.reconfigure(encoding='utf-8')
         except:
             pass
-    
-    # Parse context chapters - define this variable immediately after args parsing
-    context_chapters = None
-    if hasattr(args, 'context_chapters') and args.context_chapters:
-        try:
-            context_chapters = [int(x.strip()) for x in args.context_chapters.split(',')]
-            print(f"Context chapters specified: {context_chapters}")
-        except ValueError:
-            print("Error: Invalid context-chapters format. Use comma-separated numbers like '1,3,7'")
-            return 1
     
     # Initialize reviser
     try:
@@ -936,8 +872,8 @@ Examples:
         print(f"Starting single chapter revision for Chapter {args.chapter}")
         print("="*50)
         
-        # Load project and chapter - context_chapters should now be in scope
-        reviser.load_project_context(args.project_dir, args.chapter, context_chapters)
+        # Load project and chapter
+        reviser.load_project_context(args.project_dir, args.chapter)
         
         original_words = reviser.current_chapter['word_count']
         
