@@ -18,8 +18,6 @@ import json
 import argparse
 import datetime
 import sys
-import time
-import random
 from typing import Dict, Any, Optional
 from pathlib import Path
 import anthropic
@@ -86,25 +84,6 @@ class SingleChapterReviser:
         """Get appropriate model based on task complexity."""
         # With Sonnet 4, use it for all tasks - it's both powerful and cost-effective
         return "claude-sonnet-4-20250514"
-    
-    def _make_api_request_with_retry(self, request_func, max_retries=3):
-        """Make API request with retry logic for overloaded errors."""
-        for attempt in range(max_retries):
-            try:
-                return request_func()
-            except Exception as e:
-                error_str = str(e).lower()
-                if "overloaded" in error_str and attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) + random.uniform(1, 3)  # Exponential backoff with jitter
-                    print(f"    API overloaded, waiting {wait_time:.1f} seconds before retry {attempt + 2}/{max_retries}...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    # Re-raise the exception if it's not overloaded or we've exhausted retries
-                    raise e
-        
-        # Should never reach here, but just in case
-        raise Exception("Max retries exceeded")
     
     def load_project_context(self, project_dir: str, chapter_num: int):
         """Load project context and target chapter."""
@@ -286,14 +265,12 @@ Current word count: {self.current_chapter['word_count']} words
 Focus on actionable improvements that will enhance both literary quality and story effectiveness."""
 
         try:
-            def make_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("medium"),
-                    max_tokens=15000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
+            response = self.client.messages.create(
+                model=self._get_model_for_task("medium"),
+                max_tokens=15000,  # Generous token limit for analysis
+                messages=[{"role": "user", "content": prompt}]
+            )
             
-            response = self._make_api_request_with_retry(make_request)
             analysis = response.content[0].text
             
             # Save analysis
@@ -373,14 +350,12 @@ Rank the most important areas for expansion:
 Focus on meaningful expansion that serves the story and literary quality, not just padding for word count."""
 
         try:
-            def make_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("medium"),
-                    max_tokens=10000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
+            response = self.client.messages.create(
+                model=self._get_model_for_task("medium"),
+                max_tokens=10000,  # Generous limit for detailed revision plans
+                messages=[{"role": "user", "content": prompt}]
+            )
             
-            response = self._make_api_request_with_retry(make_request)
             plan = response.content[0].text
             
             # Save revision plan
@@ -472,21 +447,18 @@ End with a complete sentence and proper punctuation.
 Return ONLY the complete revised chapter text with no commentary."""
 
         try:
-            # Use Claude Sonnet 4's massive token capacity with streaming and retry logic
+            # Use Claude Sonnet 4's massive token capacity with streaming
             max_tokens = 60000  # Leave some buffer from the 64k limit
             
             print("  Starting revision (this may take several minutes)...")
             
-            def make_streaming_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("complex"),
-                    max_tokens=max_tokens,
-                    messages=[{"role": "user", "content": prompt}],
-                    stream=True
-                )
-            
-            # Use streaming with retry logic
-            stream = self._make_api_request_with_retry(make_streaming_request)
+            # Use streaming for long operations
+            stream = self.client.messages.create(
+                model=self._get_model_for_task("complex"),
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+                stream=True
+            )
             
             # Collect streamed response
             full_response = ""
@@ -544,15 +516,12 @@ Return only the revised section content."""
             try:
                 print(f"    Revising section {i+1}/{len(sections)}...")
                 
-                def make_section_request():
-                    return self.client.messages.create(
-                        model=self._get_model_for_task("medium"),
-                        max_tokens=15000,
-                        messages=[{"role": "user", "content": section_prompt}],
-                        stream=True
-                    )
-                
-                stream = self._make_api_request_with_retry(make_section_request)
+                stream = self.client.messages.create(
+                    model=self._get_model_for_task("medium"),
+                    max_tokens=15000,
+                    messages=[{"role": "user", "content": section_prompt}],
+                    stream=True
+                )
                 
                 # Collect streamed response
                 section_response = ""
@@ -590,15 +559,12 @@ Return the complete chapter."""
         try:
             print("  Attempting completion-focused revision...")
             
-            def make_completion_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("medium"),
-                    max_tokens=20000,
-                    messages=[{"role": "user", "content": prompt}],
-                    stream=True
-                )
-            
-            stream = self._make_api_request_with_retry(make_completion_request)
+            stream = self.client.messages.create(
+                model=self._get_model_for_task("medium"),
+                max_tokens=20000,
+                messages=[{"role": "user", "content": prompt}],
+                stream=True
+            )
             
             # Collect streamed response
             completion_response = ""
