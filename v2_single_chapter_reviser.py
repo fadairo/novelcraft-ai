@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-single_chapter_reviser.py - Focused Single Chapter Revision Tool (Updated)
+single_chapter_reviser.py - Focused Single Chapter Revision Tool
 
 This script provides targeted revision for individual chapters:
 1. Analyzes a single chapter for issues
@@ -10,7 +10,6 @@ This script provides targeted revision for individual chapters:
 
 Windows-compatible with proper encoding handling.
 Optimized for Claude Sonnet 4 with 64k token output.
-Updated to ensure revision plan is actually implemented.
 """
 
 import os
@@ -21,7 +20,7 @@ import datetime
 import sys
 import time
 import random
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from pathlib import Path
 import anthropic
 
@@ -440,27 +439,6 @@ Focus on meaningful expansion that serves the story and literary quality, not ju
             print(f"Error creating revision plan: {e}")
             return f"Error creating plan: {e}"
     
-    def _extract_revision_tasks(self, revision_plan: str) -> List[str]:
-        """Extract specific revision tasks from the plan."""
-        tasks = []
-        
-        # Look for numbered tasks
-        numbered_pattern = r'^\d+\.\s*(.+?)(?=^\d+\.|^##|^Priority|$)'
-        matches = re.findall(numbered_pattern, revision_plan, re.MULTILINE | re.DOTALL)
-        tasks.extend([match.strip() for match in matches])
-        
-        # Look for priority sections
-        priority_pattern = r'Priority\s*\d+:\s*(.+?)(?=Priority\s*\d+:|^##|$)'
-        matches = re.findall(priority_pattern, revision_plan, re.MULTILINE | re.DOTALL)
-        tasks.extend([match.strip() for match in matches])
-        
-        # Look for expansion areas
-        expansion_pattern = r'(?:expansion|expand|develop|enhance|add):\s*(.+?)(?=\n\n|\n-|$)'
-        matches = re.findall(expansion_pattern, revision_plan, re.IGNORECASE | re.MULTILINE)
-        tasks.extend([match.strip() for match in matches])
-        
-        return [task for task in tasks if len(task) > 20]  # Filter out very short entries
-    
     def revise_chapter(self, revision_plan: str) -> str:
         """Revise the chapter based on the revision plan."""
         print(f"Revising Chapter {self.chapter_num}...")
@@ -468,16 +446,13 @@ Focus on meaningful expansion that serves the story and literary quality, not ju
         original_word_count = self.current_chapter['word_count']
         target_words = self.target_word_count or int(original_word_count * 1.4)
         
-        # Extract specific tasks from the revision plan
-        revision_tasks = self._extract_revision_tasks(revision_plan)
-        
         # With Sonnet 4's 64k token limit, we can likely do the entire revision in one pass
         # Only fall back to sectioned approach for extremely long chapters
         if original_word_count > 8000:  # Very long chapters might still need sectioning
             print("  Large chapter detected, may use sectioned approach if needed...")
         
         # Try full revision first (should work for most chapters now)
-        revised_content = self._attempt_full_revision_with_verification(revision_plan, revision_tasks, target_words, original_word_count)
+        revised_content = self._attempt_full_revision(revision_plan, target_words, original_word_count)
         
         # Only use fallback approaches if the chapter appears incomplete
         if not self._is_chapter_complete(revised_content):
@@ -500,70 +475,53 @@ Focus on meaningful expansion that serves the story and literary quality, not ju
         if not self._is_chapter_complete(revised_content):
             print("  Warning: Chapter may be incomplete (ends mid-sentence)")
         
-        # Verify revision plan was implemented
-        self._verify_revision_implementation(revised_content, revision_tasks)
-        
         return revised_content
     
-    def _attempt_full_revision_with_verification(self, revision_plan: str, revision_tasks: List[str], target_words: int, original_word_count: int) -> str:
-        """Attempt full chapter revision with explicit task implementation."""
-        
-        # Create task checklist for the prompt
-        task_checklist = "\n".join([f"☐ {task}" for task in revision_tasks[:10]])  # Limit to top 10 tasks
-        
-        prompt = f"""Revise Chapter {self.chapter_num} by implementing EVERY task in the revision plan below. You must complete ALL specified tasks.
-
-REVISION PLAN TO IMPLEMENT (YOU MUST FOLLOW THIS EXACTLY):
-{revision_plan}
-
-KEY TASKS THAT MUST BE COMPLETED:
-{task_checklist}
+    def _attempt_full_revision(self, revision_plan: str, target_words: int, original_word_count: int) -> str:
+        """Attempt full chapter revision in one go."""
+        prompt = f"""Revise Chapter {self.chapter_num} based on the detailed revision plan. You are a skilled literary editor implementing specific improvements.
 
 LITERARY INSPIRATIONS TO EMULATE:
-{self.inspirations[:1000] if self.inspirations else "None"}
+{self.inspirations}
 
 PROJECT CONTEXT:
-SYNOPSIS: {self.project_context.get('synopsis', '')[:500]}
-OUTLINE: {self.project_context.get('outline', '')[:500]}
-CHARACTERS: {self.project_context.get('characters', '')[:500]}
+SYNOPSIS: {self.project_context.get('synopsis', '')}
+OUTLINE: {self.project_context.get('outline', '')}
+CHARACTERS: {self.project_context.get('characters', '')}
+
+REVISION PLAN TO IMPLEMENT:
+{revision_plan}
 
 CURRENT CHAPTER {self.chapter_num} CONTENT:
 {self.current_chapter['content']}
 
 TARGET WORD COUNT: {target_words} words (current: {original_word_count} words)
 
-CRITICAL IMPLEMENTATION REQUIREMENTS:
-1. IMPLEMENT EVERY TASK IN THE REVISION PLAN - Do not skip any tasks
-2. The chapter MUST be complete from start to finish
-3. End with proper punctuation (period, exclamation, question mark)
-4. Reach approximately the target word count through meaningful expansion
+CRITICAL SUCCESS REQUIREMENTS:
+1. The chapter MUST be complete from start to finish
+2. End with proper punctuation (period, exclamation, question mark)
+3. Implement the revision plan fully
+4. Reach approximately the target word count
 5. Maintain literary quality throughout
 
-SPECIFIC EXPANSION REQUIREMENTS FROM THE PLAN:
-- Follow the EXPANSION STRATEGY section exactly
-- Implement all CHARACTER DEVELOPMENT tasks
-- Add all LITERARY ENHANCEMENTS specified
-- Make all STRUCTURAL IMPROVEMENTS listed
-- Complete ALL numbered SPECIFIC REVISION TASKS
+EXPANSION GUIDELINES:
+- Character interiority and psychological depth
+- Atmospheric and sensory details
+- Dialogue subtext and authenticity
+- Scene development and pacing
+- Thematic elements and literary devices
 
-VERIFICATION CHECKLIST:
-Before returning the revised chapter, ensure you have:
-☐ Implemented Priority 1 expansions
-☐ Implemented Priority 2 expansions  
-☐ Implemented Priority 3 expansions
-☐ Completed all numbered tasks (1, 2, 3, etc.)
-☐ Made all consistency fixes
-☐ Enhanced all specified scenes
-☐ Expanded character development as directed
-☐ Added all atmospheric/sensory details requested
+COMPLETION INSTRUCTION:
+If you approach the token limit, prioritize completing the chapter over perfect prose. 
+End with a complete sentence and proper punctuation.
 
-Return ONLY the complete revised chapter text with no commentary. The revision must demonstrably implement the revision plan tasks."""
+Return ONLY the complete revised chapter text with no commentary."""
 
         try:
             # Use Claude Sonnet 4's massive token capacity with streaming and retry logic
             max_tokens = 60000  # Leave some buffer from the 64k limit
             
-            print("  Starting revision (implementing revision plan tasks)...")
+            print("  Starting revision (this may take several minutes)...")
             
             def make_streaming_request():
                 return self.client.messages.create(
@@ -592,34 +550,6 @@ Return ONLY the complete revised chapter text with no commentary. The revision m
             print("  Falling back to sectioned approach...")
             # Try sectioned approach as fallback
             return self._attempt_sectioned_revision(revision_plan, target_words, original_word_count)
-    
-    def _verify_revision_implementation(self, revised_content: str, revision_tasks: List[str]) -> None:
-        """Verify that revision tasks were actually implemented."""
-        print("\nVerifying revision plan implementation:")
-        
-        implemented_count = 0
-        total_tasks = min(len(revision_tasks), 5)  # Check top 5 tasks
-        
-        for i, task in enumerate(revision_tasks[:total_tasks]):
-            # Extract key words from task
-            key_words = [word.lower() for word in task.split() if len(word) > 4][:3]
-            
-            # Check if key words appear in revised content
-            task_implemented = any(word in revised_content.lower() for word in key_words)
-            
-            if task_implemented:
-                print(f"  ✓ Task {i+1} appears implemented")
-                implemented_count += 1
-            else:
-                print(f"  ⚠ Task {i+1} may not be fully implemented: {task[:50]}...")
-        
-        implementation_rate = implemented_count / total_tasks if total_tasks > 0 else 0
-        
-        if implementation_rate < 0.5:
-            print(f"\n  Warning: Only {implemented_count}/{total_tasks} tasks appear implemented.")
-            print("  The revision may not have fully followed the revision plan.")
-        else:
-            print(f"\n  Good: {implemented_count}/{total_tasks} tasks appear implemented.")
     
     def _attempt_sectioned_revision(self, revision_plan: str, target_words: int, original_word_count: int) -> str:
         """Attempt revision by breaking chapter into sections."""
