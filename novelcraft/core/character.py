@@ -8,10 +8,10 @@ from datetime import datetime
 
 class CharacterRole(Enum):
     """Character role in the story."""
-    PROTAGONIST = "protagonist"
-    ANTAGONIST = "antagonist"
-    SUPPORTING = "supporting"
-    MINOR = "minor"
+    PROTAGONIST = "PROTAGONIST"
+    ANTAGONIST = "ANTAGONIST"
+    SUPPORTING = "SUPPORTING"
+    MINOR = "MINOR"
 
 
 @dataclass
