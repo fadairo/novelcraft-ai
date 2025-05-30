@@ -50,15 +50,15 @@ class Config:
     # Model Configuration
     models: Dict[str, str] = field(default_factory=lambda: {
             "simple": "claude-3-5-sonnet-20241022",
-            "medium": "claude-3-7-sonnet-20250219",
+            "medium": "claude-opus-4-20250514",
             "complex": "claude-opus-4-20250514",
     })
     
     # Token Limits - Reduced for better stability
     max_tokens: Dict[str, int] = field(default_factory=lambda: {
-        'analysis': 6000,
-        'planning': 5000,
-        'revision': 12000  # Reduced from 8000
+        'analysis': 3000,
+        'planning': 2500,
+        'revision': 8000  # Increased from 6000
     })
     
     # File Patterns
@@ -73,7 +73,7 @@ class Config:
     ])
     
     # Expansion Settings
-    expansion_factor: float = 1.0
+    expansion_factor: float = 1.4
     
     # Encoding Settings
     file_encodings: List[str] = field(default_factory=lambda: [
@@ -224,7 +224,7 @@ class AnthropicClient:
                 response = self.client.messages.create(
                     model=model,
                     max_tokens=max_tokens,
-                    temperature=0.7,
+                    temperature=0.5,
                     messages=[{"role": "user", "content": prompt}]
                 )
                 
@@ -254,7 +254,7 @@ class AnthropicClient:
             stream = self.client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
-                temperature=0.7,
+                temperature=0.5,
                 messages=[{"role": "user", "content": prompt}],
                 stream=True
             )
@@ -524,15 +524,9 @@ class RevisionPlanner:
         self.config = config
     
     def create_plan(self, chapter: Chapter, analysis: str, 
-                   context: ProjectContext, target_word_length: Optional[int] = None) -> RevisionPlan:
+                   context: ProjectContext) -> RevisionPlan:
         """Create a revision plan for a chapter."""
-        # Use specific target or calculate from expansion factor
-        if target_word_length:
-            target_words = target_word_length
-            logger.info(f"Using specific target: {target_words} words for chapter {chapter.number}")
-        else:
-            target_words = int(chapter.word_count * self.config.expansion_factor)
-            logger.info(f"Using expansion factor {self.config.expansion_factor}: {target_words} words for chapter {chapter.number}")
+        target_words = int(chapter.word_count * self.config.expansion_factor)
         
         prompt = self._build_planning_prompt(chapter, analysis, context, target_words)
         
@@ -556,33 +550,6 @@ class RevisionPlanner:
     def _build_planning_prompt(self, chapter: Chapter, analysis: str,
                              context: ProjectContext, target_words: int) -> str:
         """Build the planning prompt."""
-        # Determine if expansion or reduction
-        change_factor = target_words / chapter.word_count
-        if change_factor > 1.1:
-            change_type = "expansion"
-            change_strategy = """
-## EXPANSION STRATEGY
-- Specific scenes to expand
-- Character moments to develop
-- Atmospheric details to add
-- Dialogue opportunities"""
-        elif change_factor < 0.9:
-            change_type = "condensation"
-            change_strategy = """
-## CONDENSATION STRATEGY
-- Scenes to streamline or combine
-- Redundant elements to remove
-- Prose to tighten
-- Essential elements to preserve"""
-        else:
-            change_type = "revision"
-            change_strategy = """
-## REVISION STRATEGY
-- Scenes to improve without changing length
-- Prose to enhance
-- Character moments to deepen
-- Dialogue to sharpen"""
-        
         return f"""Create a detailed revision plan for Chapter {chapter.number} based on the analysis.
 
 CHAPTER ANALYSIS:
@@ -598,13 +565,17 @@ CHARACTERS: {context.characters}
 
 CURRENT WORD COUNT: {chapter.word_count} words
 TARGET WORD COUNT: {target_words} words
-REVISION TYPE: {change_type.upper()} ({change_factor:.1f}x)
 
 Create a structured revision plan with:
 
 ## PRIORITY REVISIONS
 List the most critical improvements needed based on the analysis.
-{change_strategy}
+
+## EXPANSION STRATEGY
+- Specific scenes to expand
+- Character moments to develop
+- Atmospheric details to add
+- Dialogue opportunities
 
 ## LITERARY ENHANCEMENTS
 - Prose style improvements
@@ -625,12 +596,12 @@ List the most critical improvements needed based on the analysis.
 - Opening/closing refinements
 
 ## SPECIFIC TASKS
-Provide numbered, concrete revision tasks appropriate for the {change_type}:
+Provide numbered, concrete revision tasks:
 1. [Specific task with location and implementation details]
 2. [Another specific task]
 [Continue with 8-10 specific tasks]
 
-Focus on meaningful improvements that enhance the chapter's role in the novel while achieving the target length."""
+Focus on meaningful improvements that enhance the chapter's role in the novel while maintaining literary quality."""
 
 # ============================================================================
 # Chapter Revision
@@ -747,48 +718,28 @@ class ChapterReviser:
     def _build_revision_prompt(self, chapter: Chapter, plan: RevisionPlan,
                               context_content: str, specific_tasks: str) -> str:
         """Build the revision prompt."""
-        # Determine if this is expansion or reduction
-        if plan.target_word_count > chapter.word_count:
-            revision_type = "expand"
-            revision_instruction = f"expand the chapter to approximately {plan.target_word_count} words"
-            change_description = f"expansion from {chapter.word_count} to {plan.target_word_count} words"
-        elif plan.target_word_count < chapter.word_count:
-            revision_type = "revise and condense"
-            revision_instruction = f"revise the chapter to approximately {plan.target_word_count} words while incorporating the planned improvements"
-            change_description = f"condensation from {chapter.word_count} to {plan.target_word_count} words"
-        else:
-            revision_type = "revise"
-            revision_instruction = f"revise the chapter while maintaining approximately {plan.target_word_count} words"
-            change_description = f"revision while maintaining {chapter.word_count} words"
-        
-        return f"""You are a professional editor executing a specific revision plan. Your ONLY task is to revise the chapter according to the plan below.
+        return f"""You are revising Chapter {chapter.number} of a literary novel. Follow the revision plan EXACTLY and implement ALL specified changes.
 
-DO NOT:
-- Ask questions
-- Request clarification
-- Provide options or suggestions
-- Write any meta-commentary
-- Explain what you're doing
-
-YOU MUST:
-- Start immediately with "# Prologue" or "Chapter [number]"
-- Follow EVERY task in the revision plan
-- Produce exactly the revised chapter text
-- Target {plan.target_word_count} words
-
-REVISION PLAN YOU MUST FOLLOW:
-{plan.plan_content}
-
-SPECIFIC TASKS FROM THE PLAN:
-{specific_tasks}
-
-CONTEXT CHAPTERS FOR CONSISTENCY:
+CONTEXT CHAPTERS FOR REFERENCE:
 {context_content}
 
-ORIGINAL CHAPTER TO REVISE:
+REVISION PLAN TO IMPLEMENT:
+{plan.plan_content}
+
+ORIGINAL CHAPTER {chapter.number} ({chapter.word_count} words):
 {chapter.content}
 
-BEGIN YOUR RESPONSE WITH THE CHAPTER TITLE AND PROVIDE THE COMPLETE REVISED TEXT:"""
+CRITICAL REQUIREMENTS:
+1. You MUST implement EVERY task listed in the revision plan
+2. You MUST expand the chapter to approximately {plan.target_word_count} words (current: {chapter.word_count})
+3. You MUST maintain consistency with the context chapters provided
+4. You MUST maintain the original story and characters while adding new content
+5. You MUST NOT simply return the original text - make substantial additions
+
+SPECIFIC TASKS TO COMPLETE:
+{specific_tasks}
+
+IMPORTANT: Return ONLY the complete revised chapter text. Do not include any commentary, notes, or explanations. The chapter must be significantly longer than the original."""
     
     def _clean_ai_commentary(self, text: str) -> str:
         """Remove AI commentary from text."""
@@ -830,72 +781,20 @@ BEGIN YOUR RESPONSE WITH THE CHAPTER TITLE AND PROVIDE THE COMPLETE REVISED TEXT
                 len(revised) < len(original) or
                 revised[:200] == original[:200])
     
-    def _retry_revision_assertive(self, chapter: Chapter, plan: RevisionPlan,
-                                  context_content: str) -> str:
-        """Retry with very assertive instructions when AI returns commentary."""
-        # Extract just the first few tasks as explicit examples
-        tasks_match = re.search(r'## SPECIFIC TASKS(.*?)(?=##|$)', plan.plan_content, re.DOTALL)
-        first_tasks = ""
-        if tasks_match:
-            task_lines = tasks_match.group(1).strip().split('\n')[:3]
-            first_tasks = '\n'.join(task_lines)
-        
-        prompt = f"""STOP. Do not ask questions. Do not provide commentary. 
-
-Your job is to revise this chapter following these specific tasks from the plan:
-{first_tasks}
-
-Take the original chapter below and revise it to {plan.target_word_count} words.
-
-ORIGINAL:
-{chapter.content}
-
-Start your response with "# Prologue" and write the complete revised chapter:"""
-        
-        try:
-            revised = self.api_client.complete(
-                prompt,
-                model_complexity='complex',
-                max_tokens=self.config.max_tokens['revision'],
-                use_streaming=True
-            )
-            cleaned = self._clean_ai_commentary(revised)
-            
-            # If still getting commentary, return original as fallback
-            if cleaned is None:
-                logger.error("Failed to get proper revision after retry")
-                return chapter.content
-            
-            return cleaned
-        except Exception as e:
-            logger.error(f"Assertive retry failed: {e}")
-            return chapter.content
-    
     def _retry_revision(self, chapter: Chapter, plan: RevisionPlan,
                        context_content: str) -> str:
         """Retry revision with more explicit instructions."""
-        # Determine revision direction
-        if plan.target_word_count > chapter.word_count:
-            direction = "expand"
-            instruction = "add substantial new content"
-        elif plan.target_word_count < chapter.word_count:
-            direction = "condense"
-            instruction = "streamline and tighten the prose while preserving key elements"
-        else:
-            direction = "revise"
-            instruction = "improve the prose while maintaining the length"
-        
         # Use a shorter, more focused prompt for retry
-        prompt = f"""CRITICAL: You must {direction} this chapter. Do NOT return the original text unchanged.
+        prompt = f"""CRITICAL: You must revise and EXPAND this chapter. Do NOT return the original text unchanged.
 
 ORIGINAL CHAPTER (DO NOT RETURN THIS UNCHANGED):
 {chapter.content}
 
 The revised chapter MUST be approximately {plan.target_word_count} words (currently {chapter.word_count}).
 
-Based on the revision plan, you must {instruction} while maintaining the story.
+Based on the revision plan, you must add substantial new content while maintaining the story.
 
-Return ONLY the complete revised chapter."""
+Return ONLY the complete revised chapter with all additions integrated smoothly into the narrative."""
         
         try:
             revised = self.api_client.complete(
@@ -1033,13 +932,9 @@ class ChapterRevisionController:
     def run(self, project_dir: str, target_chapters: List[int],
             context_map: Optional[Dict[int, List[int]]] = None,
             analysis_only: bool = False,
-            use_existing_analysis: bool = False,
-            target_word_length: Optional[int] = None) -> None:
+            use_existing_analysis: bool = False) -> None:
         """Run the chapter revision process."""
         project_path = Path(project_dir)
-        
-        # Store target word length for use in planning
-        self.target_word_length = target_word_length
         
         # Load project
         logger.info(f"Loading project from {project_path}")
@@ -1093,19 +988,17 @@ class ChapterRevisionController:
             if use_existing_analysis and plan_file.exists():
                 logger.info(f"Using existing plan for chapter {chapter_num}")
                 plan_content = self.file_handler.read_file(plan_file)
-                # Parse plan from file  
-                target_words = self.target_word_length if self.target_word_length else int(chapter.word_count * self.config.expansion_factor)
+                # Parse plan from file
                 plans[chapter_num] = RevisionPlan(
                     chapter_number=chapter_num,
                     analysis=analyses[chapter_num],
                     plan_content=plan_content,
-                    target_word_count=target_words
+                    target_word_count=int(chapter.word_count * self.config.expansion_factor)
                 )
             else:
                 logger.info(f"Creating plan for chapter {chapter_num}")
                 plan = self.planner.create_plan(
-                    chapter, analyses[chapter_num], project_context,
-                    target_word_length=self.target_word_length
+                    chapter, analyses[chapter_num], project_context
                 )
                 plans[chapter_num] = plan
                 
@@ -1304,16 +1197,6 @@ Examples:
         help='Use cost-optimized models (may reduce quality)'
     )
     parser.add_argument(
-        '--word-length',
-        type=int,
-        help='Target word count for revised chapters (overrides default expansion)'
-    )
-    parser.add_argument(
-        '--expansion-factor',
-        type=float,
-        help='Target expansion factor if no word length specified (default: 1.4)'
-    )
-    parser.add_argument(
         '--debug',
         action='store_true',
         help='Enable debug logging'
@@ -1347,14 +1230,6 @@ Examples:
         # Create config
         config = Config()
         
-        # Apply custom word length or expansion factor
-        target_word_length = args.word_length
-        if args.expansion_factor and not args.word_length:
-            config.expansion_factor = args.expansion_factor
-            logger.info(f"Using expansion factor: {args.expansion_factor}")
-        elif args.word_length:
-            logger.info(f"Using target word length: {args.word_length}")
-        
         # Apply cost optimization if requested
         if args.cost_optimize:
             config.models['complex'] = config.models['medium']
@@ -1367,8 +1242,7 @@ Examples:
             target_chapters,
             context_map=context_map,
             analysis_only=args.analysis_only,
-            use_existing_analysis=args.use_existing_analysis,
-            target_word_length=target_word_length
+            use_existing_analysis=args.use_existing_analysis
         )
         
     except ChapterReviserError as e:
