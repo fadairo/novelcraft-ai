@@ -51,6 +51,8 @@ config.yaml
 .env
 
 # Generated content
+aws/
+a_whisper_silenced
 clowns/
 _glasshouse/
 glasshouse/
