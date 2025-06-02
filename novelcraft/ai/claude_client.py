@@ -120,7 +120,7 @@ STORY CONTEXT:
 {story_context}
 
 Create a detailed character profile including:
-- Physical appearance
+- Physical and facial appearance
 - Personality traits
 - Background/backstory
 - Motivations and goals

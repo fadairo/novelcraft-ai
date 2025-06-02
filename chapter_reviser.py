@@ -224,7 +224,7 @@ class AnthropicClient:
                 response = self.client.messages.create(
                     model=model,
                     max_tokens=max_tokens,
-                    temperature=0.7,
+                    temperature=0.5,
                     messages=[{"role": "user", "content": prompt}]
                 )
                 
@@ -254,7 +254,7 @@ class AnthropicClient:
             stream = self.client.messages.create(
                 model=model,
                 max_tokens=max_tokens,
-                temperature=0.7,
+                temperature=0.5,
                 messages=[{"role": "user", "content": prompt}],
                 stream=True
             )

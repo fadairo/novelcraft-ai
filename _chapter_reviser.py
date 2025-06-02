@@ -546,7 +546,7 @@ IMPORTANT: Return ONLY the complete revised chapter text. Do not include any com
             response = self.client.messages.create(
                 model=self._get_model_for_task("complex"),
                 max_tokens=8000,
-                temperature=0.7,
+                temperature=0.5,
                 messages=[{"role": "user", "content": prompt}]
             )
             
@@ -617,7 +617,7 @@ Return ONLY the complete revised chapter with all additions integrated smoothly 
             response = self.client.messages.create(
                 model=self._get_model_for_task("complex"),
                 max_tokens=8000,
-                temperature=0.8,
+                temperature=0.5,
                 messages=[{"role": "user", "content": prompt}]
             )
             

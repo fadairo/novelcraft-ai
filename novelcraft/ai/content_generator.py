@@ -17,7 +17,7 @@ class ContentGenerator:
         chapter_number: int,
         title: str = None,
         outline_section: str = "",
-        word_count_target: int = 2000,
+        word_count_target: int = 2500,
         context_chapters: List[int] = None,
     ) -> str:
         """Generate a new chapter based on project context."""
