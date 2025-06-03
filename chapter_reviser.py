@@ -81,11 +81,12 @@ class Config:
     
     # Temperature settings for different operations
     temperatures: Dict[str, float] = field(default_factory=lambda: {
-        'analysis': 0.3,      # Low for consistent analysis
+        'analysis': 0.2,      # Very low for factual, consistent analysis/extraction
         'planning': 0.3,      # Low for structured planning
-        'revision': 0.4,      # Moderate for controlled creativity
+        'revision': 0.4,      # Moderate for controlled creativity in revision
         'chunk_revision': 0.3, # Lower for chunk consistency
-        'retry': 0.5          # Slightly higher for variation in retry
+        'retry': 0.5,         # Slightly higher for variation in retry attempts
+        'validation': 0.2     # Low for factual validation
     })
     
     # File Patterns
@@ -229,7 +230,8 @@ Be concise and focus only on elements that are essential to the story."""
             response = self.api_client.complete(
                 prompt, 
                 model_complexity='medium',
-                max_tokens=self.config.max_tokens['analysis']
+                max_tokens=self.config.max_tokens['analysis'],
+                temperature=self.config.temperatures['analysis']
             )
             
             # Parse the structured text response instead of JSON
@@ -261,54 +263,90 @@ Be concise and focus only on elements that are essential to the story."""
             lines = response.split('\n')
             current_section = None
             
+            # Regex to strip common list markers
+            list_marker_pattern = re.compile(r'^\s*(?:[0-9]+\.|[*\-+])\s*')
+
             for line in lines:
                 line = line.strip()
                 if not line:
+                    logger.debug("Skipping empty line")
                     continue
-                
-                # Detect section headers
-                if line.upper().startswith('PLOT POINTS'):
+
+                # Detect section headers using regex
+                is_header = False
+                if re.match(r'PLOT POINTS:?', line, re.IGNORECASE):
                     current_section = 'plot'
-                elif line.upper().startswith('CHARACTER ACTIONS'):
+                    logger.debug(f"Switched to section: {current_section}")
+                    is_header = True
+                elif re.match(r'CHARACTER ACTIONS:?', line, re.IGNORECASE):
                     current_section = 'character'
-                elif line.upper().startswith('KEY DIALOGUES'):
+                    logger.debug(f"Switched to section: {current_section}")
+                    is_header = True
+                elif re.match(r'KEY DIALOGUES:?', line, re.IGNORECASE):
                     current_section = 'dialogue'
-                elif line.upper().startswith('SETTING'):
+                    logger.debug(f"Switched to section: {current_section}")
+                    is_header = True
+                elif re.match(r'SETTING:?', line, re.IGNORECASE):
                     current_section = 'setting'
-                elif line.upper().startswith('TIMELINE'):
+                    logger.debug(f"Switched to section: {current_section}")
+                    is_header = True
+                elif re.match(r'TIMELINE:?', line, re.IGNORECASE):
                     current_section = 'timeline'
-                else:
-                    # Process content based on current section
-                    if current_section == 'plot' and (line.startswith(('1.', '2.', '3.', '4.', '5.', '-'))):
-                        content = line.lstrip('0123456789.- ').strip()
-                        if content:
-                            plot_points.append(content)
-                    
-                    elif current_section == 'character' and ':' in line:
+                    logger.debug(f"Switched to section: {current_section}")
+                    is_header = True
+
+                if is_header:
+                    continue
+
+                # Process content based on current section
+                content = None
+                if current_section == 'plot':
+                    # Capture any non-empty line that isn't a header
+                    cleaned_line = list_marker_pattern.sub('', line).strip()
+                    if cleaned_line:
+                        plot_points.append(cleaned_line)
+                        content = cleaned_line
+
+                elif current_section == 'character':
+                    # Character actions are expected to have a colon
+                    if ':' in line:
                         parts = line.split(':', 1)
                         if len(parts) == 2:
-                            char_name = parts[0].strip(' -')
+                            char_name = list_marker_pattern.sub('', parts[0]).strip()
                             action = parts[1].strip()
                             if char_name and action:
                                 if char_name not in character_actions:
                                     character_actions[char_name] = []
                                 character_actions[char_name].append(action)
-                    
-                    elif current_section == 'dialogue' and ('"' in line or line.startswith(('1.', '2.', '3.'))):
-                        content = line.lstrip('0123456789.- ').strip()
-                        if content:
-                            key_dialogues.append(content)
-                    
-                    elif current_section == 'setting' and ':' in line:
-                        content = line.strip(' -')
-                        if content:
-                            setting_details.append(content)
-                    
-                    elif current_section == 'timeline' and line.strip():
-                        content = line.strip(' -')
-                        if content:
-                            timeline_markers.append(content)
-            
+                                content = f"{char_name}: {action}"
+                    else:
+                        logger.debug(f"Skipping character action line (no colon): {line}")
+
+
+                elif current_section == 'dialogue':
+                    cleaned_line = list_marker_pattern.sub('', line).strip()
+                    if cleaned_line:
+                        key_dialogues.append(cleaned_line)
+                        content = cleaned_line
+
+                elif current_section == 'setting':
+                    # Setting details can be simple lines or key-value pairs
+                    cleaned_line = list_marker_pattern.sub('', line).strip()
+                    if cleaned_line:
+                        setting_details.append(cleaned_line)
+                        content = cleaned_line
+
+                elif current_section == 'timeline':
+                    cleaned_line = list_marker_pattern.sub('', line).strip()
+                    if cleaned_line:
+                        timeline_markers.append(cleaned_line)
+                        content = cleaned_line
+
+                if content:
+                    logger.debug(f"Captured for {current_section}: {content}")
+                elif not is_header: # Avoid double logging for headers
+                    logger.debug(f"Skipping line (no current section match or empty content): {line}")
+
             # Ensure we have at least some elements
             if not plot_points:
                 plot_points = ["Chapter events to be preserved"]
@@ -361,7 +399,7 @@ class StoryPreservingAnalyzer:
                 prompt, 
                 model_complexity='medium',
                 max_tokens=self.config.max_tokens['analysis'],
-                temperature=0.5  # Slightly higher for more complete analysis
+                temperature=self.config.temperatures['analysis']
             )
             
             # Validate the analysis is complete
@@ -470,27 +508,24 @@ Identify at least 5 specific sentences or phrases that could be improved:
 Identify at least 3 places where sensory details could be added:
 - Quote the passage
 - Note which senses are missing
-- Explain what type of sensory detail would enhance the scene
+- Explain what type of sensory detail would enhance the scene and *suggest 2-3 specific examples of sensory details that could be woven in without altering events* (e.g., 'the smell of damp earth,' 'the distant sound of a train').
 
 ## 3. CHARACTER DEPTH  
 Identify at least 3 moments where character emotions/thoughts could be deeper:
 - Quote the relevant passage
 - Check consistency with character profiles above
-- Explain what's missing emotionally
-- Note how it could be more nuanced while staying true to the character
+- Explain what's missing emotionally. *Suggest 1-2 ways to show this missing emotion or nuance through internal thought, subtle action, or physical sensation, without changing the character's overt actions or dialogue content* (e.g., 'a fleeting internal thought of regret,' 'a barely perceptible tightening of the jaw').
 
 ## 4. PACING AND FLOW
 Identify at least 3 specific transitions or pacing issues:
 - Quote the problematic section
-- Explain the pacing problem
-- Suggest how flow could improve
+- Explain the pacing problem. *Suggest 2-3 specific techniques to improve flow or adjust pacing here without changing events* (e.g., 'shortening sentences in this action sequence,' 'adding a transitional phrase to bridge these two paragraphs,' 'slightly expanding a descriptive beat here to slow the moment').
 
 ## 5. DIALOGUE POLISH
 Identify at least 3 dialogue exchanges that need work:
 - Quote the dialogue
 - Verify it matches the character's voice from the profiles
-- Explain what makes it stilted or unnatural
-- Note how delivery could improve (not content)
+- Explain what makes it stilted or unnatural. *Suggest 1-2 ways to improve the delivery or subtext without changing the core meaning or information conveyed* (e.g., 'adding a brief action beat during this line,' 'rephrasing for a more natural cadence,' 'implying a specific emotion through a tone indicator in the narrative').
 
 ## 6. CHARACTER CONSISTENCY CHECK
 Review all character appearances against the character profiles:
@@ -539,7 +574,8 @@ class PreservationRevisionPlanner:
             plan_content = self.api_client.complete(
                 prompt,
                 model_complexity='medium',
-                max_tokens=self.config.max_tokens['planning']
+                max_tokens=self.config.max_tokens['planning'],
+                temperature=self.config.temperatures['planning']
             )
             
             return RevisionPlan(
@@ -693,43 +729,44 @@ CREATE A SPECIFIC PLAN WITH:
 {length_strategy}
 
 ## PROSE IMPROVEMENTS
-List specific sentences or paragraphs to enhance without changing meaning:
-- Quote the original text
-- Explain the improvement needed
-- Apply style inspirations where relevant
-- Ensure character consistency
-- Note opportunities for expansion if needed
+Review the 'PROSE QUALITY' section of the CHAPTER ANALYSIS SUMMARY. For each specific sentence or phrase identified for improvement:
+- Quote the original text.
+- Briefly restate the suggested type of improvement from the analysis.
+- Formulate a specific task to revise the prose (e.g., "Rephrase for clarity," "Replace weak verbs," "Break into shorter sentences").
+- Apply style inspirations where relevant.
+- Ensure character consistency is maintained.
+- Note opportunities for expansion if needed, aligning with word count goals.
 
 ## SENSORY ENHANCEMENTS  
-Identify where to add sensory details without adding new events:
-- Specify exact locations in the text
-- Type of sensory detail needed
-- Consider le Carré-style atmospheric details
-- Estimate additional words each enhancement will add
-- Must not change what happens
+Review the 'SENSORY ENHANCEMENT' section of the CHAPTER ANALYSIS SUMMARY. For each suggestion (e.g., specific sounds, smells, textures identified for particular scenes):
+- Identify the exact sentence or paragraph in the original chapter where this enhancement should be applied.
+- Formulate a specific task to integrate this sensory detail naturally, using or adapting the examples provided in the analysis (e.g., "Weave in the suggested detail: 'the distant hum of machinery'").
+- Briefly note the expected impact (e.g., "enhances industrial atmosphere," "grounds the scene during dialogue").
+- Estimate any word count impact for this specific task.
+- Must not change what happens or introduce new plot elements.
 
 ## DIALOGUE REFINEMENTS
-List dialogues to polish while keeping meaning intact:
-- Quote the original line
-- Verify consistency with character profiles
-- Apply Graham Greene's subtle character revelations
-- Preserve all information conveyed
-- Add narrative beats if expanding
+Review the 'DIALOGUE POLISH' section of the CHAPTER ANALYSIS SUMMARY. For each dialogue exchange identified:
+- Quote the original dialogue line(s).
+- Refer to the analysis's explanation of what makes it stilted or how delivery could improve.
+- Formulate a specific task to refine the dialogue delivery or subtext using the suggestions from the analysis (e.g., "Add a character action beat: 'she tapped her fingers impatiently' during this line to convey restlessness," "Rephrase for a more natural cadence as suggested: '...'").
+- Preserve all core meaning and information conveyed.
+- Verify consistency with character profiles and voices.
+- Add narrative beats if expanding and appropriate for pacing.
 
 ## CHARACTER DEPTH ENHANCEMENTS
-Identify opportunities to deepen character portrayal:
-- Internal thoughts that align with character profiles
-- Emotional reactions true to established personalities
-- Physical mannerisms consistent with descriptions
-- Voice and speech patterns matching profiles
+Review the 'CHARACTER DEPTH' section of the CHAPTER ANALYSIS SUMMARY. For each moment identified:
+- Quote the relevant passage.
+- Refer to the analysis's suggestions for showing missing emotion or nuance (e.g., through internal thought, subtle action, physical sensation).
+- Formulate a specific task to integrate these suggestions without changing overt actions or dialogue content (e.g., "Insert internal thought reflecting [suggested emotion] here," "Add subtle physical reaction: [suggested sensation/action] to show internal state").
+- Ensure changes align with established character profiles.
 
 ## PACING ADJUSTMENTS
-Identify where to improve flow without changing events:
-- Specific transitions to smooth
-- Sentence variety opportunities
-- Paragraph restructuring needs
-- Apply journalistic clarity where needed
-- Places to expand narrative rhythm
+Review the 'PACING AND FLOW' section of the CHAPTER ANALYSIS SUMMARY. For each transition or pacing issue identified:
+- Quote the problematic section.
+- Refer to the analysis's explanation and suggested techniques.
+- Formulate a specific task to address the issue using the suggested techniques (e.g., "Apply technique: shorten sentences in this action sequence to increase urgency," "Add suggested transitional phrase: 'Meanwhile, across town...' to bridge paragraphs X and Y," "Expand descriptive beat here to slow the moment as suggested in analysis").
+- Apply journalistic clarity where needed for transitions.
 
 ## VALIDATION CHECKLIST
 Create a checklist to ensure story preservation:
@@ -794,15 +831,89 @@ class PreservingChapterReviser:
             
             # Clean any AI commentary
             cleaned_content = self._clean_ai_commentary(revised_content)
-            
-            # Validate word count and content
             revised_word_count = len(cleaned_content.split())
+
+            # Initial validation of chapter structure
+            if not self._is_valid_chapter_revision(cleaned_content, chapter):
+                logger.warning(f"Initial revision for chapter {chapter.number} (word count {revised_word_count}) is structurally invalid. Attempting strict retry.")
+                cleaned_content = self._retry_with_stricter_constraints(chapter, plan)
+                revised_word_count = len(cleaned_content.split()) # Update word count
+
+                if not self._is_valid_chapter_revision(cleaned_content, chapter):
+                    logger.error(f"Strict retry also failed to produce structurally valid chapter content for chapter {chapter.number}.")
+                    return RevisionResult(
+                        chapter_number=chapter.number,
+                        original_content=chapter.content,
+                        revised_content=chapter.content, # Fallback to original
+                        original_word_count=chapter.word_count,
+                        revised_word_count=chapter.word_count,
+                        success=False,
+                        validation_passed=False,
+                        deviation_score=1.0, # Max deviation
+                        error_message="Failed to produce a structurally valid chapter after initial attempt and strict retry."
+                    )
+                logger.info(f"Content for chapter {chapter.number} is now structurally valid after strict retry (word count {revised_word_count}).")
+
+            # Determine target_words for length check
+            current_target_words = plan.target_word_count if plan.target_word_count > 0 else chapter.word_count
+            # Define tolerance for word count (e.g., +/- 15% of target_words)
+            # This tolerance is for deciding whether to enter the length retry logic.
+            # The retry methods themselves might have stricter final tolerances.
+            lower_bound_for_retry = current_target_words * 0.85
+            upper_bound_for_retry = current_target_words * 1.15
+
+            if not (lower_bound_for_retry <= revised_word_count <= upper_bound_for_retry):
+                logger.info(
+                    f"Structurally valid revision word count ({revised_word_count}) is outside target range "
+                    f"({lower_bound_for_retry:.0f}-{upper_bound_for_retry:.0f} for target {current_target_words}). "
+                    f"Initiating length retry process."
+                )
+                cleaned_content = self._retry_for_length(chapter, plan, current_target_words)
+                revised_word_count = len(cleaned_content.split())
+
+                # Final check for structural validity after length retries.
+                # _retry_for_length and _final_length_attempt now internally call _retry_with_stricter_constraints if they produce invalid content.
+                # So, if content is original, it means all attempts (incl. strict) failed within the retry loop.
+                if cleaned_content == chapter.content and not self._is_valid_chapter_revision(cleaned_content, chapter): # check if it resorted to original AND original is invalid (edge case)
+                     # This means even the original content might be an issue if it's being returned by failed retries.
+                     # However, _is_valid_chapter_revision should handle original content correctly.
+                     # More likely, if it's chapter.content, it means strict_retry failed from a deeper call.
+                    logger.error(f"Length retry process for chapter {chapter.number} resulted in returning original content due to persistent invalid structure.")
+                    return RevisionResult(
+                        chapter_number=chapter.number,
+                        original_content=chapter.content,
+                        revised_content=chapter.content,
+                        original_word_count=chapter.word_count,
+                        revised_word_count=chapter.word_count,
+                        success=False,
+                        validation_passed=False,
+                        deviation_score=1.0,
+                        error_message="Failed to produce structurally valid content during length retry."
+                    )
+                elif not self._is_valid_chapter_revision(cleaned_content, chapter): # Check if a non-original but invalid content came back
+                    logger.error(f"Content from length retry process for chapter {chapter.number} is structurally invalid.")
+                    return RevisionResult(
+                        chapter_number=chapter.number,
+                        original_content=chapter.content,
+                        revised_content=cleaned_content, # Show the problematic content
+                        original_word_count=chapter.word_count,
+                        revised_word_count=revised_word_count,
+                        success=False,
+                        validation_passed=False,
+                        deviation_score=1.0,
+                        error_message="Content became structurally invalid after length retry attempts."
+                    )
+                logger.info(f"Word count after length retry process for chapter {chapter.number}: {revised_word_count}")
             
-            # Validate the revision preserved story elements
+            # Validate the revision preserved story elements (using content that is now structurally valid and length-adjusted)
             validation_passed, deviation_score = self._validate_revision(
                 chapter.content, cleaned_content, plan.story_elements
             )
             
+            # Final check on word count against a stricter tolerance for success reporting, if desired.
+            # For now, success is true if we have structurally valid content that passed story validation.
+            # The reported revised_word_count will show the final length.
+
             return RevisionResult(
                 chapter_number=chapter.number,
                 original_content=chapter.content,
@@ -864,48 +975,82 @@ class PreservingChapterReviser:
                            specific_changes: Dict[str, List[str]], 
                            target_words: int) -> str:
         """Apply specific changes from the plan to the chapter."""
+
+        # --- 1. CORE STORY ELEMENTS TO PRESERVE ---
+        preserve_section = "CORE STORY ELEMENTS TO PRESERVE UNCHANGED:\n"
+        if plan.story_elements.plot_points:
+            preserve_section += "Plot Points:\n" + "\n".join(f"- {p}" for p in plan.story_elements.plot_points[:5]) + "\n\n" # Max 5
+        if plan.story_elements.character_actions:
+            preserve_section += "Key Character Actions (who did what):\n"
+            for char, actions in list(plan.story_elements.character_actions.items())[:3]: # Max 3 characters
+                preserve_section += f"- {char}:\n" + "\n".join(f"  - {a}" for a in actions[:2]) + "\n" # Max 2 actions
+            preserve_section += "\n"
+        if plan.story_elements.key_dialogues:
+            preserve_section += "Key Dialogues (essential meaning and speaker must be preserved):\n" + "\n".join(f'- "{d}"' for d in plan.story_elements.key_dialogues[:3]) + "\n\n" # Max 3
+
+        # --- 2. SPECIFIC CHANGES TO MAKE ---
+        changes_section = "SPECIFIC CHANGES TO MAKE (as detailed in the revision plan):\n"
+        if specific_changes.get('prose_improvements'):
+            changes_section += "Prose Improvements:\n"
+            for i, (original, improvement) in enumerate(specific_changes['prose_improvements'][:3], 1): # Max 3 examples
+                changes_section += f"{i}. Find text similar to: \"{original[:100]}...\"\n   Improve by applying: {improvement}\n\n"
+        if specific_changes.get('sensory_enhancements'):
+            changes_section += "Sensory Additions:\n"
+            for i, (location, enhancement) in enumerate(specific_changes['sensory_enhancements'][:2], 1): # Max 2 examples
+                changes_section += f"{i}. At location: {location}\n   Add sensory details like: {enhancement}\n\n"
+        if specific_changes.get('dialogue_refinements'):
+            changes_section += "Dialogue Improvements (refine delivery, not meaning):\n"
+            for i, (original, refinement) in enumerate(specific_changes['dialogue_refinements'][:2], 1): # Max 2 examples
+                changes_section += f"{i}. For dialogue like: \"{original}\"\n   Refine to something like: {refinement}\n\n"
+        if not specific_changes.get('prose_improvements') and not specific_changes.get('sensory_enhancements') and not specific_changes.get('dialogue_refinements'):
+            changes_section += "General prose quality enhancements focusing on vividness, clarity, and flow, as per overall plan.\n\n"
+
+        # --- 3. STYLE AND LENGTH GUIDANCE ---
+        style_length_section = "STYLE AND LENGTH REQUIREMENTS:\n"
+        if hasattr(plan, 'inspirations') and plan.inspirations:
+            style_length_section += f"Adopt a style inspired by: {plan.inspirations}.\n"
+        else:
+            style_length_section += "Maintain a clear, engaging, and consistent narrative style.\n"
         
-        # Build a focused prompt with concrete examples
-        prompt = f"""Revise this chapter following the specific improvements below. Target: {target_words} words.
+        style_length_section += f"Target word count: Approximately {target_words} words. "
+        if target_words < chapter.word_count:
+            style_length_section += f"(Current: {chapter.word_count}. This requires tightening prose by about {chapter.word_count - target_words} words.)\n"
+        elif target_words > chapter.word_count:
+            style_length_section += f"(Current: {chapter.word_count}. This requires expanding descriptions and details by about {target_words - chapter.word_count} words.)\n"
+        else:
+            style_length_section += f"(Current: {chapter.word_count}. Maintain current length.)\n"
 
-CRITICAL: You must preserve ALL plot events, character actions, and dialogue meaning. Only improve the prose style.
+        # --- 4. SMOOTH INTEGRATION AND SELF-CORRECTION ---
+        integration_correction_section = """
+INSTRUCTIONS FOR REVISION:
+1.  Carefully review all sections above: 'CORE STORY ELEMENTS TO PRESERVE', 'SPECIFIC CHANGES TO MAKE', and 'STYLE AND LENGTH REQUIREMENTS'.
+2.  Your primary goal is to improve the prose quality while strictly adhering to all preservation constraints.
+3.  Integrate the 'SPECIFIC CHANGES TO MAKE' seamlessly into the narrative. Ensure changes flow naturally with the surrounding text and maintain a consistent tone and style. Do not make these changes sound like inserted instructions.
+4.  Do NOT alter any other aspects of the story not mentioned in 'SPECIFIC CHANGES TO MAKE'.
 
-SPECIFIC CHANGES TO MAKE:
+SELF-CORRECTION CHECK:
+After drafting the revision, please mentally review your changes against the 'CORE STORY ELEMENTS TO PRESERVE' and the 'SPECIFIC CHANGES TO MAKE'. Ensure all planned changes are implemented correctly and no core story elements have been unintentionally altered. Only output the final, corrected chapter text. Your response should contain ONLY the revised chapter.
+"""
 
+        # --- ASSEMBLE THE FULL PROMPT ---
+        prompt = f"""You are an expert manuscript editor. Your task is to revise the following chapter based on a detailed plan.
+
+{preserve_section}
+{changes_section}
+{style_length_section}
+{integration_correction_section}
+
+ORIGINAL CHAPTER (Word Count: {chapter.word_count}):
+===BEGIN ORIGINAL CHAPTER===
+{chapter.content}
+===END ORIGINAL CHAPTER===
+
+REVISED CHAPTER (Target Word Count: {target_words}):
+[Your revised chapter text starts here. Ensure it is a complete chapter from beginning to end, incorporating all instructions.]
 """
         
-        # Add prose improvements
-        if specific_changes['prose_improvements']:
-            prompt += "PROSE IMPROVEMENTS:\n"
-            for i, (original, improvement) in enumerate(specific_changes['prose_improvements'][:3], 1):
-                prompt += f"{i}. Find: \"{original[:100]}...\"\n   Change to: {improvement}\n\n"
-        
-        # Add sensory enhancements
-        if specific_changes['sensory_enhancements']:
-            prompt += "\nSENSORY ADDITIONS:\n"
-            for i, (location, enhancement) in enumerate(specific_changes['sensory_enhancements'][:3], 1):
-                prompt += f"{i}. At: {location}\n   Add: {enhancement}\n\n"
-        
-        # Add dialogue refinements
-        if specific_changes['dialogue_refinements']:
-            prompt += "\nDIALOGUE IMPROVEMENTS:\n" 
-            for i, (original, refinement) in enumerate(specific_changes['dialogue_refinements'][:3], 1):
-                prompt += f"{i}. Change: \"{original}\"\n   To: {refinement}\n\n"
-        
-        # Add style guidance
-        if hasattr(plan, 'inspirations') and plan.inspirations:
-            prompt += "\nSTYLE: Write like le Carré (atmospheric), Greene (emotional depth), with journalistic clarity.\n"
-        
-        # Add length guidance
-        if target_words < chapter.word_count:
-            prompt += f"\nTIGHTEN PROSE: Remove {chapter.word_count - target_words} words by cutting redundancies and wordiness.\n"
-        elif target_words > chapter.word_count:
-            prompt += f"\nEXPAND: Add {target_words - chapter.word_count} words through richer descriptions and sensory details.\n"
-        
-        prompt += "\nREMEMBER: Keep all events, actions, and dialogue exactly the same. Only improve how they're written.\n"
-        
-        prompt += f"\nCHAPTER TO REVISE:\n{chapter.content}\n\nREVISED CHAPTER:"
-        
+        logger.debug(f"Generated revision prompt for chapter {chapter.number}:\n{prompt[:500]}...") # Log prompt preview
+
         # Use appropriate model based on length
         estimated_tokens = int(target_words * 1.3)
         if estimated_tokens > 25000:
@@ -919,7 +1064,7 @@ SPECIFIC CHANGES TO MAKE:
             prompt,
             model_complexity=model_complexity,
             max_tokens=max_tokens,
-            temperature=0.4  # Lower temperature for more controlled revision
+            temperature=self.config.temperatures['revision']
         )
         
         return response
@@ -1034,44 +1179,75 @@ Expanded version ({target_words} words):"""
             logger.error(f"Expansion failed: {e}")
             return content
     
+    def _extract_length_directives(self, plan: RevisionPlan, expansion_needed_factor: float) -> str:
+        """Helper to extract length adjustment directives from the plan."""
+        directives = []
+        if expansion_needed_factor > 1.0: # Expanding
+            directives.append("Focus on elaborating descriptions, deepening character thoughts, and adding sensory details.")
+            if "SENSORY ENHANCEMENTS" in plan.plan_content:
+                directives.append("Review the plan's 'SENSORY ENHANCEMENTS' section for specific ideas on where to add vivid details.")
+            if "CHARACTER DEPTH ENHANCEMENTS" in plan.plan_content:
+                directives.append("Consider the 'CHARACTER DEPTH ENHANCEMENTS' for moments to expand on internal monologue or emotional reactions.")
+            if "LENGTH EXPANSION STRATEGY" in plan.plan_content:
+                 # Try to find specific points in the expansion strategy
+                strategy_match = re.search(r"## LENGTH EXPANSION STRATEGY\n(.*?)(?=\n##|$)", plan.plan_content, re.DOTALL | re.IGNORECASE)
+                if strategy_match:
+                    points = [line.strip('-* ').capitalize() for line in strategy_match.group(1).splitlines() if line.strip() and len(line.strip()) > 10]
+                    if points:
+                        directives.append("Recall the plan's expansion strategy, such as: '" + "', '".join(points[:2]) + "'.") # Max 2 specific points
+        elif expansion_needed_factor < 1.0: # Condensing
+            directives.append("Focus on tightening prose, removing redundancies, and ensuring every word contributes.")
+            if "TIGHTEN PROSE" in plan.plan_content: # Assuming plan might have such a section if condensing
+                directives.append("Review the plan for any notes on conciseness or sections to shorten.")
+
+        if plan.revision_focus:
+            focus_relevant = [f for f in plan.revision_focus if "pacing" in f.lower() or "description" in f.lower() or "detail" in f.lower()]
+            if focus_relevant:
+                directives.append(f"The plan also highlighted focusing on: {', '.join(focus_relevant[:2])}.")
+
+        return "\n- ".join(directives) if directives else "Elaborate on descriptions, character thoughts, and sensory details throughout the chapter."
+
+
     def _retry_for_length(self, chapter: Chapter, plan: RevisionPlan, 
                          target_words: int) -> str:
         """Retry revision with explicit focus on achieving target length."""
         
-        logger.info(f"Retrying chapter {chapter.number} for proper length")
+        logger.info(f"Retrying chapter {chapter.number} for proper length, using plan directives.")
         
         # Calculate how much expansion is needed
-        expansion_needed = target_words / chapter.word_count
+        expansion_needed_factor = target_words / chapter.word_count if chapter.word_count > 0 else 2.0 # Avoid division by zero
         estimated_tokens = int(target_words * 1.3)
         
+        plan_directives = self._extract_length_directives(plan, expansion_needed_factor)
+
         # Choose model based on expected output
         if estimated_tokens > 32000:
             model_complexity = 'extended'  # Sonnet 4
-            max_tokens = min(estimated_tokens + 5000, 60000)
-            model_note = "Using Claude Sonnet 4 with extended output capacity"
+            max_tokens = min(estimated_tokens + 5000, 60000) # Ensure it does not exceed model's hard limit
+            model_note = "Using Claude Sonnet 4 with extended output capacity."
         else:
             model_complexity = 'complex'  # Opus 4
             max_tokens = 30000
-            model_note = "Using Claude Opus 4"
+            model_note = "Using Claude Opus 4."
         
-        prompt = f"""Your previous revision was too short. You MUST produce approximately {target_words} words.
+        prompt = f"""Your previous revision was significantly off the target word count. You MUST produce approximately {target_words} words.
 
 {model_note}
 
 CRITICAL LENGTH REQUIREMENT:
-- Original chapter: {chapter.word_count} words  
-- Your revision MUST be approximately {target_words} words
-- This requires {expansion_needed:.1f}x expansion
+- Original chapter: {chapter.word_count} words.
+- Your revision MUST be approximately {target_words} words.
+- This requires an approximate {expansion_needed_factor:.1f}x adjustment in length.
 
-To reach {target_words} words, you must:
-- Include ALL content from the original
-- Add rich sensory details to every scene
-- Expand emotional reactions and internal thoughts
-- Enhance descriptions of settings and atmosphere
-- Develop the prose style without changing events
-- Add narrative beats and transitions
-- Deepen character observations
-- Enrich the prose with literary techniques
+DETAILED STRATEGY TO REACH {target_words} WORDS (incorporating the revision plan):
+- Include ALL content and story events from the original chapter. Do not omit anything.
+- To adjust length, apply the following based on the original revision plan:
+  - {plan_directives}
+- If expanding: Add rich sensory details to every scene, expand emotional reactions and internal thoughts, enhance descriptions of settings and atmosphere, develop the prose style without changing events, add narrative beats and transitions, and deepen character observations.
+- If condensing: Focus on conciseness, remove redundant words or phrases, and ensure each sentence is impactful.
+- Enrich the prose with literary techniques suitable for the genre.
+
+SELF-CORRECTION CHECK: Before finalizing, double-check that your revised chapter is indeed close to {target_words} words and that all original story events are preserved.
 
 ORIGINAL CHAPTER ({chapter.word_count} words):
 {chapter.content}
@@ -1083,51 +1259,64 @@ Output the COMPLETE revised chapter of approximately {target_words} words. Start
                 prompt,
                 model_complexity=model_complexity,
                 max_tokens=max_tokens,
-                temperature=0.4  # Slightly higher for more content
+                temperature=self.config.temperatures['retry']
             )
             
             cleaned = self._clean_ai_commentary(revised)
+            actual_words = len(cleaned.split()) # Calculate words before validity check
+
+            if not self._is_valid_chapter_revision(cleaned, chapter):
+                logger.warning(f"Content from _retry_for_length is invalid for chapter {chapter.number}. Attempting strict retry.")
+                cleaned = self._retry_with_stricter_constraints(chapter, plan)
+                actual_words = len(cleaned.split()) # Recalculate word count
+                # If strict retry still returns original content, it might fail length check again, leading to final_length_attempt
+                # which will also validate and call strict_retry if needed. This is acceptable.
+                if not self._is_valid_chapter_revision(cleaned, chapter): # Check again after strict_retry
+                     logger.error(f"Content remains invalid after strict_retry from _retry_for_length for chapter {chapter.number}.")
+                     return chapter.content # Give up on this path, return original
+
+            # Length check for _retry_for_length's own output (potentially after strict_retry)
+            if not (target_words * 0.75 <= actual_words <= target_words * 1.25):
+                logger.info(f"Content (word count {actual_words}) from plan-based length retry is still off target ({target_words}). Proceeding to final length attempt.")
+                return self._final_length_attempt(chapter, plan, target_words)
             
-            # Final validation
-            actual_words = len(cleaned.split())
-            if actual_words < target_words * 0.7:
-                logger.error(f"Still too short after retry: {actual_words} words vs target {target_words}")
-                # Try one more time with maximum encouragement
-                return self._final_length_attempt(chapter, target_words)
-            
-            logger.info(f"Length retry successful: {actual_words} words")
+            logger.info(f"Plan-based length retry successful: {actual_words} words (Target: {target_words}). Content appears valid.")
             return cleaned
             
-        except Exception as e:
-            logger.error(f"Length retry failed: {e}")
-            return chapter.content
+        except Exception as e: # Includes APIError from refusal check in self.api_client.complete
+            logger.error(f"Length retry API call failed or content refused: {e}")
+            # Attempt strict retry if API call itself failed or content was refused
+            logger.warning(f"Attempting strict constraint retry for chapter {chapter.number} due to error in length retry.")
+            return self._retry_with_stricter_constraints(chapter, plan)
     
-    def _final_length_attempt(self, chapter: Chapter, target_words: int) -> str:
-        """Final attempt to achieve target length with maximum clarity."""
+    def _final_length_attempt(self, chapter: Chapter, plan: RevisionPlan, target_words: int) -> str:
+        """Final attempt to achieve target length with maximum clarity and plan directives."""
         
-        logger.info(f"Final length attempt for chapter {chapter.number}")
+        logger.info(f"Final length attempt for chapter {chapter.number}, using plan directives.")
         
+        expansion_needed_factor = target_words / chapter.word_count if chapter.word_count > 0 else 2.0
+        plan_directives = self._extract_length_directives(plan, expansion_needed_factor)
+
         # Always use Sonnet 4 for final attempt to ensure we have enough tokens
         estimated_tokens = int(target_words * 1.5)  # Extra buffer
         
-        prompt = f"""FINAL ATTEMPT: You MUST produce {target_words} words. Previous attempts were too short.
+        prompt = f"""ABSOLUTE FINAL ATTEMPT: You MUST produce {target_words} words. Previous attempts have failed to meet this critical requirement.
 
-Using Claude Sonnet 4 with extended output capacity. You have plenty of tokens available.
+Using Claude Sonnet 4 with extended output capacity. You have sufficient tokens.
 
-MANDATORY: Output must be {target_words} words (tolerance: ±10%)
+MANDATORY OUTPUT LENGTH: Exactly {target_words} words (tolerance: ±5%). This is not a suggestion.
 
-Strategy for reaching {target_words} words:
-1. Start with the original {chapter.word_count} words
-2. For EVERY paragraph, add:
-   - Sensory details (sight, sound, smell, touch, taste)
-   - Character thoughts and feelings
-   - Environmental atmosphere
-   - Physical sensations and reactions
-3. Expand EVERY scene with richer prose
-4. Add narrative transitions between scenes
-5. Deepen EVERY emotion and reaction
+STRATEGY FOR ACHIEVING {target_words} WORDS (incorporating the revision plan):
+1.  Start with the original {chapter.word_count} words of content.
+2.  Preserve ALL original plot points, character actions, and dialogue meanings.
+3.  Systematically adjust length based on the original revision plan:
+    - {plan_directives}
+4.  If expanding: For EVERY paragraph and scene, consciously add descriptive details (sights, sounds, smells, textures, tastes), deepen character thoughts and internal reactions, expand on atmospheric elements, and elaborate on physical sensations. Do this consistently.
+5.  If condensing: For EVERY paragraph, critically evaluate for redundant words, phrases, or sentences. Rephrase for maximum conciseness without losing meaning.
+6.  Ensure smooth narrative transitions if adding content.
+7.  Do a final word count check yourself before outputting.
 
-ORIGINAL TEXT TO EXPAND:
+ORIGINAL TEXT TO REVISE FOR LENGTH:
 {chapter.content}
 
 BEGIN YOUR {target_words} WORD REVISION NOW WITH "Chapter {chapter.number}"."""
@@ -1135,14 +1324,24 @@ BEGIN YOUR {target_words} WORD REVISION NOW WITH "Chapter {chapter.number}"."""
         try:
             revised = self.api_client.complete(
                 prompt,
-                model_complexity='extended',  # Always use Sonnet 4 for final attempt
-                max_tokens=min(estimated_tokens, 60000),
-                temperature=0.5  # Higher temperature for more content
+                model_complexity='extended',  # Always use Sonnet 4
+                max_tokens=min(estimated_tokens, 60000), # Ensure it does not exceed model's hard limit
+                temperature=self.config.temperatures['retry']
             )
-            return self._clean_ai_commentary(revised)
-        except Exception as e:
-            logger.error(f"Final length attempt failed: {e}")
-            return chapter.content
+            cleaned_response = self._clean_ai_commentary(revised)
+
+            if not self._is_valid_chapter_revision(cleaned_response, chapter):
+                logger.error(f"Content from _final_length_attempt is still invalid for chapter {chapter.number}. Attempting strict retry as last resort.")
+                # This is the absolute last attempt for valid structure.
+                return self._retry_with_stricter_constraints(chapter, plan)
+
+            logger.info(f"Content from _final_length_attempt for chapter {chapter.number} appears structurally valid.")
+            return cleaned_response
+        except Exception as e: # Includes APIError from refusal check in self.api_client.complete
+            logger.error(f"Final length attempt API call failed or content refused: {e}")
+            # Attempt strict retry even on API error during final length attempt, as it might be a model refusal or format issue.
+            logger.warning(f"Attempting strict constraint retry for chapter {chapter.number} due to error in final length attempt.")
+            return self._retry_with_stricter_constraints(chapter, plan)
     
     def _is_valid_chapter_revision(self, content: str, original_chapter: Chapter) -> bool:
         """Check if the returned content is a valid chapter revision."""
@@ -1232,49 +1431,140 @@ ORIGINAL ({chapter.word_count} words):
 
 REVISED ({target_words} words):"""
     
+    def _truncate_text(self, text: str, max_words: int) -> str:
+        """Helper to truncate text to a maximum number of words."""
+        words = text.split()
+        if len(words) > max_words:
+            return " ".join(words[:max_words]) + "..."
+        return text
+
     def _validate_revision(self, original: str, revised: str, 
                           story_elements: StoryElements) -> Tuple[bool, float]:
-        """Validate that core story elements are preserved."""
+        """Validate that core story elements are preserved using an AI call."""
         
-        # Quick validation checks
-        validation_checks = []
+        logger.info("Validating revision using AI...")
+
+        # Prepare content for the prompt, truncating if necessary
+        original_summary = self._truncate_text(original, 500) # Approx 500 words for summary
+        revised_excerpt = self._truncate_text(revised, 1000) # More of the revised text
+
+        plot_points_str = "\n".join(f"- {p}" for p in story_elements.plot_points[:10]) # Max 10 plot points
         
-        # Check key plot points are mentioned
-        plot_points_to_check = story_elements.plot_points[:5] if story_elements.plot_points else []
-        for plot_point in plot_points_to_check:
-            # Simple keyword check
-            key_words = plot_point.lower().split()[:3] if plot_point else []
-            if key_words and all(word in revised.lower() for word in key_words):
-                validation_checks.append(True)
+        character_actions_str = ""
+        for char, actions in list(story_elements.character_actions.items())[:5]: # Max 5 characters
+            character_actions_str += f"\n{char}:\n"
+            for action in actions[:3]: # Max 3 actions per character
+                character_actions_str += f"  - {action}\n"
+
+        key_dialogues_str = "\n".join(f'- "{d}"' for d in story_elements.key_dialogues[:5]) # Max 5 dialogues
+
+        prompt = f"""Please analyze the revised chapter content based on the original story elements and a summary of the original chapter. My goal was to revise the chapter for prose quality ONLY, without changing any core story elements.
+
+STORY ELEMENTS TO PRESERVE:
+Plot Points:
+{plot_points_str}
+
+Character Actions (Who did what):
+{character_actions_str}
+
+Key Dialogues (Essential meaning to be preserved):
+{key_dialogues_str}
+
+ORIGINAL CHAPTER SUMMARY:
+{original_summary}
+
+REVISED CHAPTER EXCERPT (analyze this entire excerpt):
+{revised_excerpt}
+
+ANALYSIS TASK:
+1.  Compare the "REVISED CHAPTER EXCERPT" against the "ORIGINAL CHAPTER SUMMARY" and the "STORY ELEMENTS TO PRESERVE".
+2.  Identify and list any plot points that have been significantly altered or removed in the revised version.
+3.  Identify and list any character actions (who did what) that have been changed or new significant actions introduced for key characters.
+4.  Identify and list any key dialogues whose essential meaning has been changed.
+5.  List any new plot elements or significant character actions/motivations introduced in the revised text that were not in the original story elements.
+6.  Provide an overall assessment: "Overall Assessment: [Your assessment of story preservation - e.g., Well preserved, Minor changes, Significant deviations]."
+7.  Suggest a deviation score on a scale of 0.0 (perfect preservation, no unintended changes to plot/character/dialogue meaning) to 1.0 (major deviations). Format: "Deviation Score: [score]"
+
+Focus ONLY on factual changes to the story (plot, character actions, dialogue meaning). Do NOT comment on prose style or quality. Be concise. If no significant deviations are found, state that clearly.
+"""
+        try:
+            response_text = self.api_client.complete(
+                prompt,
+                model_complexity='medium', # 'simple' might be too weak, 'medium' for better nuance
+                max_tokens=self.config.max_tokens.get('validation', 1000), # Use validation specific token limit
+                temperature=self.config.temperatures['validation']
+            )
+            logger.debug(f"AI Validation Response:\n{response_text}")
+
+            deviation_score = 1.0  # Default to max deviation if parsing fails
+            validation_passed = False
+            identified_changes = []
+
+            # Parse deviation score
+            score_match = re.search(r"Deviation Score:\s*([0-9.]+)", response_text, re.IGNORECASE)
+            if score_match:
+                deviation_score = float(score_match.group(1))
             else:
-                validation_checks.append(False)
-                logger.warning(f"Missing plot point: {plot_point}")
+                logger.warning("Could not parse deviation score from AI response.")
+
+            # Parse overall assessment
+            assessment_match = re.search(r"Overall Assessment:\s*(.*)", response_text, re.IGNORECASE)
+            assessment_text = assessment_match.group(1).strip() if assessment_match else "No assessment found."
+            logger.info(f"AI Overall Assessment: {assessment_text}")
+
+            # Simplistic check for identified changes (look for list items or keywords indicating issues)
+            # A more robust parsing would be to look for the lists requested in points 2, 3, 4, 5.
+            lines = response_text.splitlines()
+            capturing_changes = False
+            for line in lines:
+                if any(header.lower() in line.lower() for header in ["plot points that have been significantly altered",
+                                                                    "character actions that have been changed",
+                                                                    "key dialogues whose essential meaning has been changed",
+                                                                    "new plot elements or significant character actions"]):
+                    capturing_changes = True
+                    identified_changes.append(line) # Add the header itself
+                    continue
+                if capturing_changes and line.strip().startswith(("-", "*", "1.", "2.")): # common list markers
+                    identified_changes.append(line.strip())
+                elif capturing_changes and not line.strip(): # stop capturing after an empty line
+                    capturing_changes = False
+
+
+            if deviation_score < 0.2 and not identified_changes: # Stricter if no changes explicitly listed
+                validation_passed = True
+            elif deviation_score < 0.25 and "well preserved" in assessment_text.lower() : # Looser if AI says it's fine
+                 validation_passed = True
+            elif "minor changes" in assessment_text.lower() and deviation_score < 0.3: # Allow minor if score is low
+                validation_passed = True # Could be False depending on strictness desired
+                logger.warning(f"AI reported minor changes. Manual review recommended. Score: {deviation_score}")
+            else: # Covers "significant deviations" or high scores
+                validation_passed = False
+                logger.warning(f"AI validation failed or reported significant deviations. Score: {deviation_score}")
+
+            if identified_changes:
+                logger.info("AI identified the following potential deviations:")
+                for change in identified_changes:
+                    logger.info(f"  - {change}")
+            elif "no significant deviations" in response_text.lower() or "no deviations found" in response_text.lower() or "well preserved" in assessment_text.lower() :
+                 logger.info("AI reported no significant deviations.")
+
+
+        except APIError as e:
+            logger.error(f"API error during AI validation: {e}")
+            # Fallback to a high deviation score, indicating failure
+            return False, 1.0
+        except Exception as e:
+            logger.error(f"Error parsing AI validation response: {e}")
+            # Fallback to a high deviation score
+            return False, 1.0
+
+        logger.info(f"AI Validation Result - Passed: {validation_passed}, Deviation Score: {deviation_score:.2f}")
+        return validation_passed, deviation_score
+
+    def _retry_with_stricter_constraints(self, chapter: Chapter, plan: RevisionPlan) -> str:
+        """Retry revision with even stricter constraints, aiming for valid chapter structure."""
         
-        # Check character names still appear with similar frequency
-        for character in list(story_elements.character_actions.keys())[:5]:  # Check first 5 characters
-            original_count = original.lower().count(character.lower())
-            revised_count = revised.lower().count(character.lower())
-            if abs(original_count - revised_count) <= 2:
-                validation_checks.append(True)
-            else:
-                validation_checks.append(False)
-                logger.warning(f"Character frequency mismatch: {character}")
-        
-        # Calculate deviation score
-        if validation_checks:
-            passed = sum(validation_checks) / len(validation_checks) > 0.8
-            deviation_score = 1.0 - (sum(validation_checks) / len(validation_checks))
-        else:
-            passed = True  # No checks means we can't invalidate
-            deviation_score = 0.0
-        
-        return passed, deviation_score
-    
-    def _retry_with_stricter_constraints(self, chapter: Chapter, 
-                                        plan: RevisionPlan) -> str:
-        """Retry revision with even stricter constraints."""
-        
-        logger.info(f"Retrying chapter {chapter.number} revision with stricter constraints")
+        logger.info(f"Retrying chapter {chapter.number} with stricter constraints to ensure valid chapter format.")
         
         target_words = getattr(plan, 'target_word_count', chapter.word_count)
         
@@ -1324,16 +1614,18 @@ OUTPUT THE REVISED CHAPTER NOW:"""
                 temperature=0.5  # Moderate temperature for balance
             )
             
-            # Ensure proper formatting
-            if not response.strip().lower().startswith(('chapter', '# chapter')):
-                response = f"# Chapter {chapter.number}\n\n{response}"
+            cleaned_response = self._clean_ai_commentary(response)
+
+            if not self._is_valid_chapter_revision(cleaned_response, chapter):
+                logger.error(f"Content from _retry_with_stricter_constraints is still invalid for chapter {chapter.number}.")
+                return chapter.content # Ultimate fallback to original content
             
-            return response
+            logger.info(f"Successfully produced valid-looking content for chapter {chapter.number} with strict retry.")
+            return cleaned_response
             
         except Exception as e:
-            logger.error(f"Strict retry failed: {e}")
-            # Fallback
-            return f"# Chapter {chapter.number}\n\n{chapter.content}"
+            logger.error(f"Strict retry API call failed: {e}") # Clarified log
+            return chapter.content # Fallback to original content
     
     def _clean_ai_commentary(self, text: str) -> str:
         """Remove AI commentary from text."""
@@ -1444,22 +1736,52 @@ class AnthropicClient:
                 
                 # Extract text from response - being very careful here
                 if response and hasattr(response, 'content'):
+                    raw_result = ""
                     if isinstance(response.content, list) and len(response.content) > 0:
                         first_content = response.content[0]
                         if hasattr(first_content, 'text'):
-                            result = str(first_content.text)
-                            logger.info(f"Response received: {len(result.split())} words")
-                            return result
+                            raw_result = str(first_content.text)
                         else:
-                            return str(first_content)
-                    elif isinstance(response.content, str):
-                        return response.content
+                            raw_result = str(first_content) # Should ideally not happen with messages API
+                    elif isinstance(response.content, str): # Should ideally not happen with messages API
+                        raw_result = response.content
                     else:
                         logger.error(f"Unexpected response content type: {type(response.content)}")
-                        return str(response.content)
-                else:
-                    logger.error(f"Unexpected response structure: {type(response)}")
-                    return str(response)
+                        raw_result = str(response.content) # Fallback
+
+                    # Check for AI refusal patterns in the response content
+                    # Ensure raw_result is not None and is a string before lowercasing
+                    if raw_result is not None and isinstance(raw_result, str):
+                        result_lower = raw_result.lower()
+                        refusal_patterns = [
+                            "i cannot fulfill this request",
+                            "i am unable to",
+                            "i'm sorry, but i cannot",
+                            "my apologies, but i am unable",
+                            "as a large language model, i cannot", # More specific to avoid false positives
+                            "as an ai assistant, i am unable",
+                            "i do not have the capability",
+                            "error processing request", # Generic error
+                            "failed to generate a response", # Generic error
+                            "unable to provide an answer",
+                            "i cannot provide a response",
+                            "my instructions prevent me from"
+                        ]
+                        for pattern in refusal_patterns:
+                            if pattern in result_lower:
+                                error_message = f"AI responded with a refusal or error: '{raw_result[:150]}...'"
+                                logger.error(error_message)
+                                raise APIError(error_message)
+
+                        logger.info(f"Response received: {len(raw_result.split())} words")
+                        return raw_result
+                    else: # raw_result is None or not a string
+                        error_message = f"Received unexpected or null content from AI: {raw_result}"
+                        logger.error(error_message)
+                        raise APIError(error_message)
+                else: # response object itself is problematic
+                    logger.error(f"Unexpected response structure or empty response: {type(response)}")
+                    raise APIError(f"Unexpected response structure or empty response: {type(response)}")
                 
             except RateLimitError:
                 if attempt < self.config.max_retries - 1:
