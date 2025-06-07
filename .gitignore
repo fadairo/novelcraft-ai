@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+rourkes/
 entitled/
 aws/
 a_whisper_silenced
