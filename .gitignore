@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+entitled/
 aws/
 a_whisper_silenced
 clowns/
