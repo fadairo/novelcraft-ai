@@ -58,7 +58,7 @@ class Config:
     max_tokens: Dict[str, int] = field(default_factory=lambda: {
         'analysis': 3000,
         'planning': 2500,
-        'revision': 8000  # Increased from 6000
+        'revision': 12000  # Increased from 8000
     })
     
     # File Patterns
