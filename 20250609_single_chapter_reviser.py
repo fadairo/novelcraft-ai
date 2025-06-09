@@ -13,56 +13,6 @@ Optimized for Claude Sonnet 4 with 64k token output.
 Enhanced with staged revision and task verification.
 """
 
-
-
-# === Claude + Metric-Driven Revision Logic ===
-import anthropic
-from text_metrics import compute_burstiness, compute_perplexity_proxy
-
-client = anthropic.Anthropic(api_key="your-anthropic-api-key")
-
-def analyze_metrics(text):
-    burstiness = compute_burstiness(text)
-    perplexity = compute_perplexity_proxy(text)
-    return burstiness, perplexity
-
-def build_prompt_claude(text, burstiness, perplexity):
-    notes = []
-    if burstiness < 0.45:
-        notes.append("Vary sentence lengths. Break long passages with short, abrupt lines.")
-    if perplexity < 0.6:
-        notes.append("Increase unpredictability. Add metaphor, hesitation, and indirectness.")
-
-    guidance = " ".join(notes) if notes else "Preserve tone but improve rhythm and realism."
-
-    return f"""
-Human: Revise the following chapter to sound more human-written. {guidance}
-
-### ORIGINAL TEXT:
-{text}
-
-Assistant:
-"""
-
-def revise_with_claude(text, model="claude-3-opus-20240229", max_tokens=2048):
-    burstiness, perplexity = analyze_metrics(text)
-    prompt = build_prompt_claude(text, burstiness, perplexity)
-
-    response = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        temperature=0.7,
-        messages=[
-            {{"role": "user", "content": prompt.strip()}}
-        ]
-    )
-
-    revised_text = response.content[0].text if hasattr(response.content[0], "text") else str(response.content)
-    return revised_text, burstiness, perplexity
-# === END CLAUDE REVISION ===
-
-
-# === REVISION ENGINE ===
 import os
 import re
 import json
