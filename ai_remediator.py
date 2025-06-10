@@ -34,7 +34,6 @@ Assistant:
 """
 
 def clean_response(raw_text):
-    # Remove boilerplate/preamble AI phrases
     if raw_text.strip().lower().startswith("here is") or "### ORIGINAL TEXT:" in raw_text:
         parts = raw_text.split("### ORIGINAL TEXT:")
         if len(parts) > 1:
@@ -48,7 +47,7 @@ def revise_with_claude(text, model="claude-opus-4-20250514", max_tokens=8000):
     response = client.messages.create(
         model=model,
         max_tokens=max_tokens,
-        temperature=0.7,
+        temperature=0.5,
         stream=True,
         messages=[{"role": "user", "content": prompt.strip()}]
     )
@@ -65,33 +64,36 @@ def loop_until_human(filename, threshold=0.9, max_passes=5):
     with open(filename, 'r', encoding='utf-8') as f:
         current_text = f.read()
 
-    for i in range(1, max_passes + 1):
-        revised_text, b, p = revise_with_claude(current_text)
-        avg = (b + p) / 2
-        print(f"→ Pass {i}: Burstiness={b:.2f}, Perplexity={p:.2f}, Average={avg:.2f}")
-        if avg >= threshold:
-            print(f"✓ Human-like threshold reached in {i} pass(es).")
-            current_text = revised_text
-            break
-        current_text = revised_text
-        time.sleep(2)
-
-    # base = os.path.basename(filename)
-    # name, ext = os.path.splitext(base)
-    # new_name = f"{name}_AIChecked.md"
-    # with open(new_name, 'w', encoding='utf-8') as f:
-    #     f.write(current_text)
     base = os.path.basename(filename)
     name, ext = os.path.splitext(base)
     output_dir = os.path.join(os.path.dirname(filename), "revised", "ai-checked")
     os.makedirs(output_dir, exist_ok=True)
 
-    output_path = os.path.join(output_dir, f"{name}_AIChecked.md")
-    with open(output_path, 'w', encoding='utf-8') as f:
+    for i in range(1, max_passes + 1):
+        revised_text, b, p = revise_with_claude(current_text)
+        avg = (b + p) / 2
+        print(f"→ Pass {i}: Burstiness={b:.2f}, Perplexity={p:.2f}, Average={avg:.2f}")
+
+        # Save this pass
+        checkpoint_name = f"{name}_pass{i}.md"
+        checkpoint_path = os.path.join(output_dir, checkpoint_name)
+        with open(checkpoint_path, 'w', encoding='utf-8') as f:
+            f.write(revised_text)
+        print(f"✓ Saved checkpoint: {checkpoint_path}")
+
+        if avg >= threshold:
+            print(f"✓ Human-like threshold reached in {i} pass(es).")
+            current_text = revised_text
+            break
+
+        current_text = revised_text
+        time.sleep(2)
+
+    # Save final version
+    final_path = os.path.join(output_dir, f"{name}_AIChecked.md")
+    with open(final_path, 'w', encoding='utf-8') as f:
         f.write(current_text)
-
-    print(f"✓ Saved final revision to: {output_path}")
-
+    print(f"✓ Final revision saved to: {final_path}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
