@@ -106,13 +106,6 @@ class SingleChapterReviser:
         self.completed_tasks = []
         self.failed_tasks = []
     
-
-    def _load_instruction_prompt(self, file_path: str = "revision_instructions.md") -> str:
-        """Load external markdown-based editorial instructions."""
-        if os.path.exists(file_path):
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read()
-        return ""
     def _safe_read_file(self, file_path: str) -> str:
         """Safely read a file with multiple encoding attempts."""
         encodings = ['utf-8', 'utf-8-sig', 'cp1252', 'latin1', 'ascii']
