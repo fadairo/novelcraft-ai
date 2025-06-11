@@ -177,14 +177,24 @@ STYLE INSTRUCTIONS:
 5. Target average sentence length of {style_metrics['avg_sentence_length']:.0f} words
 6. Preserve the tone, voice, and rhythm of the reference text
 
+CRITICAL CONTENT PRESERVATION RULES:
+- DO NOT add any new information, facts, or ideas not present in the input text
+- DO NOT remove any information, facts, or ideas from the input text
+- DO NOT change the meaning or intent of any statement
+- DO NOT add examples, elaborations, or explanations unless they exist in the input
+- DO NOT change any numbers, dates, names, or specific facts
+- DO NOT merge or split paragraphs differently than in the input
+- DO NOT change the logical flow or order of ideas
+- ONLY change: word choice, sentence structure, rhythm, and stylistic elements
+
 INPUT TEXT TO REVISE:
 {input_chunk}
 
-Please revise the input text to match the reference style while preserving the original meaning and content. Output only the revised text without any explanations."""
+Please revise the input text to match the reference style while STRICTLY preserving ALL original content, meaning, and information. Output only the revised text without any explanations."""
         
         return prompt
     
-    def transfer_style(self, reference_text: str, input_text: str, output_file: str):
+    def transfer_style(self, reference_text: str, input_text: str, output_file: str, verify_content: bool = False, strict_mode: bool = False):
         """Main method to transfer style from reference to input text"""
         print("Analyzing reference text style...")
         style_metrics = self.analyzer.analyze_style(reference_text)
@@ -205,6 +215,15 @@ Please revise the input text to match the reference style while preserving the o
             
             prompt = self.create_style_prompt(reference_text, chunk, style_metrics)
             
+            # Add extra strict instructions if in strict mode
+            if strict_mode:
+                prompt = prompt.replace("CRITICAL CONTENT PRESERVATION RULES:", 
+                    """CRITICAL CONTENT PRESERVATION RULES (STRICT MODE):
+- You are a COPY EDITOR, not a writer. Do NOT add ANY new content
+- Every fact, number, and idea in the output MUST exist in the input
+- If the input has 5 points, the output must have exactly 5 points
+- Treat this like a translation between styles, not a rewrite""")
+            
             try:
                 response = self.client.messages.create(
                     model="claude-opus-4-20250514",
@@ -214,6 +233,19 @@ Please revise the input text to match the reference style while preserving the o
                 
                 revised_chunk = response.content[0].text
                 revised_chunks.append(revised_chunk)
+                
+                # Content verification if enabled
+                if verify_content:
+                    input_words = set(chunk.lower().split())
+                    output_words = set(revised_chunk.lower().split())
+                    
+                    # Check for potential additions
+                    new_words = output_words - input_words
+                    content_words = [w for w in new_words if len(w) > 4 and w.isalpha()]
+                    
+                    if len(content_words) > len(input_words) * 0.1:  # More than 10% new content words
+                        print(f"  ⚠️  Warning: Chunk {i+1} may contain new content")
+                        print(f"     New words detected: {', '.join(list(content_words)[:10])}...")
                 
             except Exception as e:
                 print(f"Error processing chunk {i+1}: {e}")
@@ -268,6 +300,10 @@ Note: Input and reference files can be .txt or .md
     # Optional arguments
     parser.add_argument('--chunk-size', type=int, default=2000, 
                        help='Maximum tokens per chunk (default: 2000)')
+    parser.add_argument('--verify', action='store_true',
+                       help='Enable content verification mode (compares input vs output)')
+    parser.add_argument('--strict', action='store_true',
+                       help='Use stricter content preservation instructions')
     
     args = parser.parse_args()
     
@@ -338,7 +374,9 @@ Note: Input and reference files can be .txt or .md
         original_chunk_method = agent.analyzer.chunk_text
         agent.analyzer.chunk_text = lambda text: original_chunk_method(text, max_tokens=args.chunk_size)
     
-    agent.transfer_style(reference_text, input_text, output_file)
+    agent.transfer_style(reference_text, input_text, output_file, 
+                        verify_content=args.verify, 
+                        strict_mode=args.strict)
 
 if __name__ == "__main__":
     main()
