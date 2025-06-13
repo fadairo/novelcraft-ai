@@ -44,7 +44,7 @@ Human: Revise the following chapter to sound more human-written. {guidance}
 Assistant:
 """
 
-def revise_with_claude(text, model="claude-3-opus-20240229", max_tokens=2048):
+def revise_with_claude(text, model="claude-opus-4-20250514", max_tokens=2048):
     burstiness, perplexity = analyze_metrics(text)
     prompt = build_prompt_claude(text, burstiness, perplexity)
 

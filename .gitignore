@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+spoils/
 rourkes/
 entitled/
 aws/

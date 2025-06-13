@@ -1,4 +1,4 @@
-"""AI Content generation with file-based architecture support and revision instructions."""
+"""AI Content generation with file-based architecture support."""
 
 from typing import Dict, List, Optional, Any
 import asyncio
@@ -6,42 +6,10 @@ from pathlib import Path
 
 
 class ContentGenerator:
-    """Generates novel content using AI with file-based chapter management and revision instructions."""
+    """Generates novel content using AI with file-based chapter management."""
     
-    def __init__(self, ai_client, revision_instructions_path: str = None):
+    def __init__(self, ai_client):
         self.ai_client = ai_client
-        self.revision_instructions = None
-        
-        # Load revision instructions if path provided
-        if revision_instructions_path:
-            self.load_revision_instructions(revision_instructions_path)
-    
-    def load_revision_instructions(self, path: str) -> None:
-        """Load revision instructions from markdown file."""
-        try:
-            with open(path, 'r', encoding='utf-8') as f:
-                self.revision_instructions = f.read()
-        except FileNotFoundError:
-            print(f"Warning: Revision instructions file not found at {path}")
-            self.revision_instructions = None
-        except Exception as e:
-            print(f"Error loading revision instructions: {e}")
-            self.revision_instructions = None
-    
-    def _enhance_prompt_with_instructions(self, base_prompt: str) -> str:
-        """Enhance the base prompt with revision instructions."""
-        if not self.revision_instructions:
-            return base_prompt
-        
-        # Prepend the revision instructions to the prompt
-        enhanced_prompt = f"""IMPORTANT WRITING STYLE INSTRUCTIONS:
-{self.revision_instructions}
-
----
-
-Now, following the above style instructions carefully, {base_prompt}"""
-        
-        return enhanced_prompt
     
     async def generate_chapter(
         self,
@@ -52,7 +20,7 @@ Now, following the above style instructions carefully, {base_prompt}"""
         word_count_target: int = 2500,
         context_chapters: List[int] = None,
     ) -> str:
-        """Generate a new chapter based on project context with revision instructions."""
+        """Generate a new chapter based on project context."""
         
         # Auto-generate title if not provided
         if not title:
@@ -65,12 +33,7 @@ Now, following the above style instructions carefully, {base_prompt}"""
         # Gather context from project
         context = self._build_generation_context(project, chapter_number, context_chapters)
         
-        # Build the enhanced style notes with revision instructions
-        enhanced_style_notes = context["style_notes"]
-        if self.revision_instructions:
-            enhanced_style_notes = f"{self.revision_instructions}\n\n{enhanced_style_notes}"
-        
-        # Generate content using existing ClaudeClient method signature
+        # Generate content
         content = await self.ai_client.generate_chapter(
             chapter_number=chapter_number,
             chapter_title=normalized_title,
@@ -79,7 +42,7 @@ Now, following the above style instructions carefully, {base_prompt}"""
             character_info=context["characters"],
             existing_chapters=context["existing_chapters"],
             word_count_target=word_count_target,
-            style_notes=enhanced_style_notes  # Pass revision instructions through style_notes
+            style_notes=context["style_notes"]
         )
         
         return content
@@ -122,7 +85,7 @@ Now, following the above style instructions carefully, {base_prompt}"""
         expansion_notes: str = "",
         target_expansion: int = 500,
     ) -> str:
-        """Expand an existing chapter with additional content using revision instructions."""
+        """Expand an existing chapter with additional content."""
         
         chapter = project.document.get_chapter(chapter_number)
         if not chapter:
@@ -134,20 +97,12 @@ Now, following the above style instructions carefully, {base_prompt}"""
         # Build context
         context = self._build_generation_context(project, chapter_number)
         
-        # Build enhanced expansion notes with revision instructions
-        enhanced_expansion_notes = expansion_notes
-        if self.revision_instructions:
-            enhanced_expansion_notes = f"""Follow these style instructions for the expansion:
-{self.revision_instructions}
-
-Expansion notes: {expansion_notes}"""
-        
-        # Generate expansion using existing ClaudeClient method
+        # Generate expansion
         expanded_content = await self.ai_client.expand_chapter(
             chapter_number=chapter_number,
             chapter_title=chapter.title,
             current_content=current_content,
-            expansion_notes=enhanced_expansion_notes,
+            expansion_notes=expansion_notes,
             target_words=target_expansion,
             synopsis=context["synopsis"],
             character_info=context["characters"],
@@ -174,15 +129,12 @@ Expansion notes: {expansion_notes}"""
         # Build context
         context = self._build_generation_context(project, chapter_number)
         
-        # If we have revision instructions, add them to the focus areas context
-        enhanced_focus_areas = focus_areas or ["pacing", "dialogue", "character_development", "continuity"]
-        
         # Get AI analysis
         analysis = await self.ai_client.analyze_chapter(
             chapter_number=chapter_number,
             chapter_title=chapter.title,
             content=current_content,
-            focus_areas=enhanced_focus_areas,
+            focus_areas=focus_areas or ["pacing", "dialogue", "character_development", "continuity"],
             synopsis=context["synopsis"],
             character_info=context["characters"],
             existing_chapters=context["existing_chapters"]
@@ -202,19 +154,11 @@ Expansion notes: {expansion_notes}"""
         # Build context
         context = self._build_generation_context(project, chapter_start)
         
-        # Enhance plot points with style instructions if available
-        enhanced_plot_points = plot_points
-        if self.revision_instructions:
-            enhanced_plot_points = f"""Style guide for outline:
-{self.revision_instructions}
-
-Plot points: {plot_points}"""
-        
         # Generate outline section
         outline = await self.ai_client.generate_outline(
             chapter_start=chapter_start,
             chapter_end=chapter_end,
-            plot_points=enhanced_plot_points,
+            plot_points=plot_points,
             synopsis=context["synopsis"],
             character_info=context["characters"],
             existing_outline=context["outline"],
@@ -269,19 +213,13 @@ Plot points: {plot_points}"""
         # Build context
         context = self._build_generation_context(project, next_chapter)
         
-        # Build enhanced context with style guide
-        enhanced_existing_chapters = context["existing_chapters"]
-        if self.revision_instructions:
-            # Add style guide as a special entry
-            enhanced_existing_chapters["style_guide"] = f"Follow these style instructions:\n{self.revision_instructions}"
-        
         # Get suggestions
         suggestions = await self.ai_client.suggest_chapters(
             next_chapter_number=next_chapter,
             synopsis=context["synopsis"],
             character_info=context["characters"],
             outline=context["outline"],
-            existing_chapters=enhanced_existing_chapters,
+            existing_chapters=context["existing_chapters"],
             num_suggestions=num_suggestions
         )
         
@@ -326,7 +264,7 @@ Plot points: {plot_points}"""
                     content = content[:2000] + "..."
                 existing_chapters[chapter_num] = content
         
-        # Get style notes from recent chapters, enhanced with revision instructions
+        # Get style notes from recent chapters
         style_notes = self._extract_style_notes(project, chapters_to_include)
         
         return {
@@ -339,42 +277,66 @@ Plot points: {plot_points}"""
     
     def _extract_style_notes(self, project, chapter_numbers: List[int]) -> str:
         """Extract style guidance from existing chapters."""
-        base_notes = ""
-        
         if not chapter_numbers:
-            base_notes = "Maintain consistent narrative voice and pacing."
-        else:
-            # Simple style analysis based on recent chapters
-            total_words = 0
-            total_sentences = 0
-            dialogue_count = 0
-            
-            for chapter_num in chapter_numbers[-2:]:  # Last 2 chapters
-                if chapter_num in project.document.chapters:
-                    content = project.get_chapter_content(chapter_num)
-                    
-                    # Basic analysis
-                    words = len(content.split())
-                    sentences = len([s for s in content.split('.') if s.strip()])
-                    dialogue_lines = content.count('"')
-                    
-                    total_words += words
-                    total_sentences += sentences
-                    dialogue_count += dialogue_lines
-            
-            if total_sentences > 0:
-                avg_sentence_length = total_words / total_sentences
-                dialogue_ratio = dialogue_count / total_words if total_words > 0 else 0
-                
-                base_notes = f"Maintain average sentence length around {avg_sentence_length:.1f} words. "
-                
-                if dialogue_ratio > 0.02:
-                    base_notes += "Continue using dialogue to drive character development. "
-                else:
-                    base_notes += "Focus on narrative description and internal thoughts. "
-            else:
-                base_notes = "Maintain consistent narrative voice and pacing."
+            return "Maintain consistent narrative voice and pacing."
         
-        # If we have revision instructions, they're already being passed through other means
-        # This method just extracts style from existing chapters
-        return base_notes
+        # Simple style analysis based on recent chapters
+        total_words = 0
+        total_sentences = 0
+        dialogue_count = 0
+        
+        for chapter_num in chapter_numbers[-2:]:  # Last 2 chapters
+            if chapter_num in project.document.chapters:
+                content = project.get_chapter_content(chapter_num)
+                
+                # Basic analysis
+                words = len(content.split())
+                sentences = len([s for s in content.split('.') if s.strip()])
+                dialogue_lines = content.count('"')
+                
+                total_words += words
+                total_sentences += sentences
+                dialogue_count += dialogue_lines
+        
+        if total_sentences > 0:
+            avg_sentence_length = total_words / total_sentences
+            dialogue_ratio = dialogue_count / total_words if total_words > 0 else 0
+            
+            style_notes = f"Maintain average sentence length around {avg_sentence_length:.1f} words. "
+            
+            if dialogue_ratio > 0.02:
+                style_notes += "Continue using dialogue to drive character development. "
+            else:
+                style_notes += "Focus on narrative description and internal thoughts. "
+                
+            return style_notes
+        
+        return "Maintain consistent narrative voice and pacing."
+    
+    async def suggest_next_chapters(
+        self,
+        project,
+        num_suggestions: int = 3,
+    ) -> List[Dict[str, Any]]:
+        """Suggest ideas for next chapters based on current progress."""
+        
+        # Find the highest chapter number
+        if not project.document.chapters:
+            next_chapter = 1
+        else:
+            next_chapter = max(project.document.chapters.keys()) + 1
+        
+        # Build context
+        context = self._build_generation_context(project, next_chapter)
+        
+        # Get suggestions
+        suggestions = await self.ai_client.suggest_chapters(
+            next_chapter_number=next_chapter,
+            synopsis=context["synopsis"],
+            character_info=context["characters"],
+            outline=context["outline"],
+            existing_chapters=context["existing_chapters"],
+            num_suggestions=num_suggestions
+        )
+        
+        return suggestions

@@ -676,31 +676,6 @@ def ai():
     pass
 
 
-# Helper function to find revision instructions
-def find_revision_instructions(project_file, revision_instructions=None, no_revision_instructions=False):
-    """Find revision instructions file path."""
-    if no_revision_instructions:
-        return None
-        
-    if revision_instructions:
-        return revision_instructions
-    
-    # Look for default revision_instructions.md
-    from pathlib import Path
-    project_path = Path(project_file).parent
-    possible_paths = [
-        project_path / "revision_instructions.md",  # Project directory
-        Path("revision_instructions.md"),  # Current directory
-        Path.home() / ".novelcraft" / "revision_instructions.md",  # User config
-    ]
-    
-    for path in possible_paths:
-        if path.exists():
-            return str(path)
-    
-    return None
-
-
 # AI Generation Commands
 @ai.command()
 @click.argument('project_file', type=click.Path(exists=True))
@@ -709,13 +684,8 @@ def find_revision_instructions(project_file, revision_instructions=None, no_revi
 @click.option('--outline-section', help='Specific outline section for this chapter')
 @click.option('--word-count', default=2000, help='Target word count')
 @click.option('--context-chapters', help='Comma-separated list of chapter numbers to use as context')
-@click.option('--revision-instructions', '-r', type=click.Path(exists=True), 
-              help='Path to revision instructions file (default: looks for revision_instructions.md)')
-@click.option('--no-revision-instructions', is_flag=True, 
-              help='Disable revision instructions even if file exists')
 @click.pass_context
-def generate_chapter(ctx, project_file, number, title, outline_section, word_count, 
-                    context_chapters, revision_instructions, no_revision_instructions):
+def generate_chapter(ctx, project_file, number, title, outline_section, word_count, context_chapters):
     """Generate a new chapter using AI"""
     import asyncio
     from ..ai.claude_client import ClaudeClient
@@ -738,24 +708,14 @@ def generate_chapter(ctx, project_file, number, title, outline_section, word_cou
                 click.echo("❌ Invalid context chapters format. Use: 1,2,3")
                 sys.exit(1)
         
-        # Find revision instructions
-        revision_path = find_revision_instructions(project_file, revision_instructions, no_revision_instructions)
-        
-        if revision_path:
-            click.echo(f"📝 Using revision instructions from: {revision_path}")
-        elif not no_revision_instructions:
-            click.echo("💡 No revision_instructions.md found. Using default generation style.")
-        
-        # Initialize AI components with revision instructions
+        # Initialize AI components
         claude_client = ClaudeClient()
-        generator = ContentGenerator(claude_client, revision_path)
+        generator = ContentGenerator(claude_client)
         
         click.echo(f"🤖 Generating Chapter {number}...")
         if title:
             click.echo(f"📝 Title: {title}")
         click.echo(f"🎯 Target: {word_count:,} words")
-        if revision_path:
-            click.echo(f"✨ Using advanced humanization techniques")
         
         # Generate chapter
         async def generate():
@@ -792,13 +752,8 @@ def generate_chapter(ctx, project_file, number, title, outline_section, word_cou
 @click.option('--chapter', prompt='Chapter number', type=int, help='Chapter number to expand')
 @click.option('--notes', help='Specific expansion notes or direction')
 @click.option('--target-words', default=500, help='Target number of words to add')
-@click.option('--revision-instructions', '-r', type=click.Path(exists=True), 
-              help='Path to revision instructions file')
-@click.option('--no-revision-instructions', is_flag=True, 
-              help='Disable revision instructions')
 @click.pass_context
-def expand_chapter(ctx, project_file, chapter, notes, target_words, 
-                  revision_instructions, no_revision_instructions):
+def expand_chapter(ctx, project_file, chapter, notes, target_words):
     """Expand an existing chapter with AI-generated content"""
     import asyncio
     from ..ai.claude_client import ClaudeClient
@@ -814,19 +769,14 @@ def expand_chapter(ctx, project_file, chapter, notes, target_words,
         
         chapter_obj = project.document.get_chapter(chapter)
         
-        # Find revision instructions
-        revision_path = find_revision_instructions(project_file, revision_instructions, no_revision_instructions)
-        
         # Initialize AI components
         claude_client = ClaudeClient()
-        generator = ContentGenerator(claude_client, revision_path)
+        generator = ContentGenerator(claude_client)
         
         click.echo(f"🤖 Expanding {chapter_obj.title}...")
         click.echo(f"🎯 Adding ~{target_words:,} words")
         if notes:
             click.echo(f"📝 Notes: {notes}")
-        if revision_path:
-            click.echo(f"✨ Using advanced humanization techniques")
         
         # Expand chapter
         async def expand():
@@ -1044,12 +994,8 @@ def check_continuity(ctx, project_file, chapters):
 @ai.command()
 @click.argument('project_file', type=click.Path(exists=True))
 @click.option('--num-suggestions', default=3, help='Number of chapter suggestions to generate')
-@click.option('--revision-instructions', '-r', type=click.Path(exists=True), 
-              help='Path to revision instructions file')
-@click.option('--no-revision-instructions', is_flag=True, 
-              help='Disable revision instructions')
 @click.pass_context
-def suggest_next(ctx, project_file, num_suggestions, revision_instructions, no_revision_instructions):
+def suggest_next(ctx, project_file, num_suggestions):
     """Get AI suggestions for next chapters to write"""
     import asyncio
     from ..ai.claude_client import ClaudeClient
@@ -1058,16 +1004,11 @@ def suggest_next(ctx, project_file, num_suggestions, revision_instructions, no_r
     try:
         project = ctx.obj['project_loader'].load_project(project_file)
         
-        # Find revision instructions
-        revision_path = find_revision_instructions(project_file, revision_instructions, no_revision_instructions)
-        
         # Initialize AI components
         claude_client = ClaudeClient()
-        generator = ContentGenerator(claude_client, revision_path)
+        generator = ContentGenerator(claude_client)
         
         click.echo(f"🤖 Generating {num_suggestions} chapter suggestions...")
-        if revision_path:
-            click.echo(f"✨ Using style guide from: {revision_path}")
         
         # Get suggestions
         async def suggest():
@@ -1112,8 +1053,6 @@ def suggest_next(ctx, project_file, num_suggestions, revision_instructions, no_r
     except Exception as e:
         click.echo(f"❌ Error generating suggestions: {e}", err=True)
         sys.exit(1)
-
-
 def export(ctx, project_file, output_file, export_format):
     """Export project to various formats"""
     try:
