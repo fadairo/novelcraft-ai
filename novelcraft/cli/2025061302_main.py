@@ -840,9 +840,12 @@ def expand_chapter(ctx, project_file, chapter, notes, target_words,
         expansion_content = asyncio.run(expand())
         
         if expansion_content:
-            # The AI now returns the complete expanded chapter, not just additions
-            # So we replace the entire chapter content
-            success = project.update_chapter_content(chapter, expansion_content)
+            # Get current content and append expansion
+            current_content = project.get_chapter_content(chapter)
+            new_content = current_content + "\n\n" + expansion_content
+            
+            # Update chapter
+            success = project.update_chapter_content(chapter, new_content)
             
             if success:
                 ctx.obj['project_loader'].save_project(project, project_file)

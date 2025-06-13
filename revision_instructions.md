@@ -9,6 +9,8 @@
 
 ### 1. **Embrace Literary Complexity While Adding Human Touches**
 
+- **AVOID**: Purple prose and explicit messaging
+- **AVOID**:Restating themes
 - **KEEP**: Complex sentence structures that mirror natural thought patterns
 - **ADD**: Occasional fragments that punctuate the flow naturally
 - **EXAMPLE**: "The morning stretched before her, endless and thick with possibility. She thought about calling. Didn't. The coffee grew cold while she watched the neighbor's cat stalk something invisible in the tall grass—probably nothing, cats were like that, seeing ghosts where there were only shadows."
@@ -41,6 +43,7 @@
 
 ### 1. **Natural Thought Progression**
 
+- Write in **Close Third-Person**
 - Follow associative logic rather than linear argument
 - Allow thoughts to spiral and return
 - Include moments of self-correction without excessive flagging
@@ -50,6 +53,7 @@
 ### 2. **Dialogue That Captures Real Speech**
 
 - People interrupt themselves with new thoughts
+- Avoid Expository Dialogue
 - They respond to subtext rather than literal questions
 - Include natural pauses and redirections
 - **EXAMPLE**:
@@ -102,6 +106,8 @@
 - If a metaphor transforms, show the transformation
 - If it fails, acknowledge why it fails
 - Keep the intellectual engagement of literary fiction
+- Avoid Overly Decorative Prose
+- Avoid Thematic Repetition
 
 ## SYNTHESIS: THE GOAL
 

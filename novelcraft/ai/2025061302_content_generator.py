@@ -65,14 +65,8 @@ Now, following the above style instructions carefully, {base_prompt}"""
         # Gather context from project
         context = self._build_generation_context(project, chapter_number, context_chapters)
         
-        # Build the enhanced style notes with revision instructions and inspiration
+        # Build the enhanced style notes with revision instructions
         enhanced_style_notes = context["style_notes"]
-        
-        # Add inspiration if available
-        if context.get("inspiration"):
-            enhanced_style_notes = f"INSPIRATION AND STYLE REFERENCES:\n{context['inspiration']}\n\n{enhanced_style_notes}"
-        
-        # Add revision instructions if available
         if self.revision_instructions:
             enhanced_style_notes = f"{self.revision_instructions}\n\n{enhanced_style_notes}"
         
@@ -85,7 +79,7 @@ Now, following the above style instructions carefully, {base_prompt}"""
             character_info=context["characters"],
             existing_chapters=context["existing_chapters"],
             word_count_target=word_count_target,
-            style_notes=enhanced_style_notes  # Pass revision instructions and inspiration through style_notes
+            style_notes=enhanced_style_notes  # Pass revision instructions through style_notes
         )
         
         return content
@@ -128,7 +122,7 @@ Now, following the above style instructions carefully, {base_prompt}"""
         expansion_notes: str = "",
         target_expansion: int = 500,
     ) -> str:
-        """Expand an existing chapter by integrating new content throughout."""
+        """Expand an existing chapter with additional content using revision instructions."""
         
         chapter = project.document.get_chapter(chapter_number)
         if not chapter:
@@ -136,97 +130,29 @@ Now, following the above style instructions carefully, {base_prompt}"""
         
         # Get current content
         current_content = project.get_chapter_content(chapter_number)
-        current_word_count = len(current_content.split())
-        
-        print(f"Current chapter has {current_word_count} words")
         
         # Build context
         context = self._build_generation_context(project, chapter_number)
         
         # Build enhanced expansion notes with revision instructions
-        enhanced_expansion_notes = f"""You must expand this chapter from {current_word_count} words to approximately {current_word_count + target_expansion} words.
-
-CRITICAL INSTRUCTIONS:
-1. Return the ENTIRE chapter with expansions integrated throughout
-2. Do NOT return just the original text - you MUST add new content
-3. Add approximately {target_expansion} new words by:
-   - Expanding every scene with more sensory details
-   - Adding dialogue beats, pauses, and physical reactions between spoken lines
-   - Inserting character thoughts and internal reactions
-   - Describing settings and atmosphere in greater detail
-   - Adding transitional passages between scenes
-   - Expanding action sequences with more specific movements
-4. Start immediately with the chapter text (no preamble)
-5. Ensure all sentences are complete
-6. The expanded version MUST be significantly longer than the original
-
-Original chapter content follows. Expand it throughout:
----
-{current_content}
----
-
-Return the complete expanded chapter text now:"""
-
-        if expansion_notes:
-            enhanced_expansion_notes = f"{enhanced_expansion_notes}\n\nSpecific expansion focus: {expansion_notes}"
-            
+        enhanced_expansion_notes = expansion_notes
         if self.revision_instructions:
-            # Add revision instructions but keep them concise for expansion
-            enhanced_expansion_notes = f"{enhanced_expansion_notes}\n\nApply these style principles during expansion:\n{self.revision_instructions[:1500]}..."
+            enhanced_expansion_notes = f"""Follow these style instructions for the expansion:
+{self.revision_instructions}
+
+Expansion notes: {expansion_notes}"""
         
-        # Pass the enhanced notes through the expansion_notes parameter
-        # Don't pass the current content again since it's already in the notes
+        # Generate expansion using existing ClaudeClient method
         expanded_content = await self.ai_client.expand_chapter(
             chapter_number=chapter_number,
             chapter_title=chapter.title,
-            current_content="",  # Empty since we included it in the notes
+            current_content=current_content,
             expansion_notes=enhanced_expansion_notes,
-            target_words=current_word_count + target_expansion,  # Total target, not just addition
+            target_words=target_expansion,
             synopsis=context["synopsis"],
             character_info=context["characters"],
             outline=context["outline"]
         )
-        
-        # Clean up the response
-        expanded_content = expanded_content.strip()
-        
-        # Remove any preamble if it exists
-        lines = expanded_content.split('\n')
-        if lines:
-            # Check first line for common preamble patterns
-            first_line_lower = lines[0].lower()
-            if any(phrase in first_line_lower for phrase in [
-                "here is", "here's", "expanded version", "chapter with", 
-                "additional words", "woven throughout", "expanded chapter",
-                "complete expanded", "i've expanded", "i have expanded"
-            ]) or lines[0].endswith(':'):
-                expanded_content = '\n'.join(lines[1:]).strip()
-        
-        # Double-check we actually got expanded content
-        expanded_word_count = len(expanded_content.split())
-        print(f"Expanded chapter has {expanded_word_count} words")
-        
-        if expanded_word_count <= current_word_count:
-            print(f"WARNING: Expansion failed. Original: {current_word_count} words, Returned: {expanded_word_count} words")
-            # Try to return the original content to avoid data loss
-            return current_content
-        
-        # Ensure the content doesn't end mid-sentence
-        if expanded_content and not expanded_content.rstrip().endswith(('.', '!', '?', '"')):
-            # Try to find the last complete sentence
-            last_sentence_end = max(
-                expanded_content.rfind('.'),
-                expanded_content.rfind('!'),
-                expanded_content.rfind('?')
-            )
-            
-            if last_sentence_end > 0:
-                # Check if there's a quote after the punctuation
-                quote_after = expanded_content.find('"', last_sentence_end)
-                if quote_after > last_sentence_end and quote_after - last_sentence_end < 5:
-                    expanded_content = expanded_content[:quote_after + 1]
-                else:
-                    expanded_content = expanded_content[:last_sentence_end + 1]
         
         return expanded_content
     
@@ -361,17 +287,6 @@ Plot points: {plot_points}"""
         
         return suggestions
     
-    def _load_inspiration_file(self, project_path: Path) -> str:
-        """Load inspiration.md file if it exists."""
-        inspiration_path = project_path / "inspiration.md"
-        if inspiration_path.exists():
-            try:
-                with open(inspiration_path, 'r', encoding='utf-8') as f:
-                    return f.read()
-            except Exception as e:
-                print(f"Warning: Could not load inspiration file: {e}")
-        return ""
-    
     def _build_generation_context(
         self, 
         project, 
@@ -388,9 +303,6 @@ Plot points: {plot_points}"""
         
         # Get character information
         characters = project.characters.generate_character_summary()
-        
-        # Load inspiration file if available
-        inspiration = self._load_inspiration_file(project.project_path)
         
         # Get existing chapters for context
         existing_chapters = {}
@@ -422,8 +334,7 @@ Plot points: {plot_points}"""
             "outline": outline,
             "characters": characters,
             "existing_chapters": existing_chapters,
-            "style_notes": style_notes,
-            "inspiration": inspiration
+            "style_notes": style_notes
         }
     
     def _extract_style_notes(self, project, chapter_numbers: List[int]) -> str:
