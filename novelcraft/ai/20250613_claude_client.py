@@ -1,71 +1,38 @@
-"""Claude AI client for NovelCraft AI with streaming support."""
+"""Claude AI client for NovelCraft AI."""
 
 import os
-import json
 import asyncio
-from typing import Dict, List, Optional, Any, AsyncIterator
-from anthropic import AsyncAnthropic
+from typing import Dict, List, Optional, Any
+import anthropic
 from tenacity import retry, stop_after_attempt, wait_exponential
-import logging
-
-logger = logging.getLogger(__name__)
 
 
 class ClaudeClient:
-    """Client for interacting with Claude AI API with streaming support."""
+    """Client for interacting with Claude AI API."""
     
     def __init__(self, api_key: Optional[str] = None):
-        """Initialize Claude client with async support."""
+        """Initialize Claude client."""
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
             raise ValueError("ANTHROPIC_API_KEY environment variable or api_key parameter is required")
         
-        # Use AsyncAnthropic for proper async support
-        self.client = AsyncAnthropic(api_key=self.api_key)
+        self.client = anthropic.Anthropic(api_key=self.api_key)
         self.model = "claude-opus-4-20250514"  # Default model
-        self.max_tokens = 10000
-        self.use_streaming = True  # Enable streaming by default for long operations
+        self.max_tokens = 50000
     
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def _make_request(self, messages: List[Dict[str, str]], system: str = "") -> str:
-        """Make a request to Claude API with retry logic and streaming support."""
+        """Make a request to Claude API with retry logic."""
         try:
-            # For operations that might take long (like chapter generation), use streaming
-            if self.use_streaming and self.max_tokens > 10000:
-                return await self._make_streaming_request(messages, system)
-            else:
-                # For shorter operations, use regular request
-                response = await self.client.messages.create(
-                    model=self.model,
-                    max_tokens=self.max_tokens,
-                    system=system,
-                    messages=messages,
-                    timeout=600.0  # 10 minute timeout
-                )
-                return response.content[0].text
-        except Exception as e:
-            logger.error(f"API request failed: {e}")
-            raise
-    
-    async def _make_streaming_request(self, messages: List[Dict[str, str]], system: str = "") -> str:
-        """Make a streaming request to Claude API for long operations."""
-        try:
-            full_response = []
-            
-            # Create streaming response
-            async with self.client.messages.stream(
+            response = self.client.messages.create(
                 model=self.model,
                 max_tokens=self.max_tokens,
                 system=system,
-                messages=messages,
-            ) as stream:
-                async for text in stream.text_stream:
-                    full_response.append(text)
-            
-            return ''.join(full_response)
-            
+                messages=messages
+            )
+            return response.content[0].text
         except Exception as e:
-            logger.error(f"Streaming API request failed: {e}")
+            print(f"API request failed: {e}")
             raise
     
     async def generate_chapter(
@@ -75,70 +42,27 @@ class ClaudeClient:
         outline: str,
         synopsis: str,
         character_info: str,
-        existing_chapters: Optional[Dict[int, str]] = None,
-        word_count_target: int = 2500,
+        existing_chapters: Dict[int, str] = None,
+        word_count_target: int = 3500,
         style_notes: str = "",
     ) -> str:
         """Generate a chapter using Claude with normalized title format."""
-        # Dynamic import to avoid circular dependency
-        try:
-            from ..core.document import normalize_chapter_title
-            normalized_title = normalize_chapter_title(chapter_title)
-        except ImportError:
-            # Fallback if import fails
-            normalized_title = f"Chapter {chapter_number}: {chapter_title}"
+        from ..core.document import normalize_chapter_title
         
         existing_chapters = existing_chapters or {}
         
+        # Ensure the chapter title is normalized
+        normalized_title = normalize_chapter_title(chapter_title)
+        
         # Build context from existing chapters
-        context = self._build_chapter_context(existing_chapters, chapter_number)
+        context = ""
+        if existing_chapters:
+            context = "\n\nPrevious chapters for context:\n"
+            for ch_num in sorted(existing_chapters.keys()):
+                if ch_num < chapter_number:
+                    context += f"\n--- Chapter {ch_num} ---\n{existing_chapters[ch_num][:1000]}...\n"
         
-        system_prompt = self._create_chapter_generation_prompt(
-            normalized_title=normalized_title,
-            synopsis=synopsis,
-            word_count_target=word_count_target,
-            character_info=character_info,
-            outline=outline,
-            style_notes=style_notes,
-            context=context
-        )
-        
-        messages = [
-            {
-                "role": "user",
-                "content": f"Please write {normalized_title}"
-            }
-        ]
-        
-        # Enable streaming for chapter generation
-        self.use_streaming = True
-        return await self._make_request(messages, system_prompt)
-    
-    def _build_chapter_context(self, existing_chapters: Dict[int, str], current_chapter: int) -> str:
-        """Build context from existing chapters."""
-        if not existing_chapters:
-            return ""
-        
-        context = "\n\nPrevious chapters for context:\n"
-        for ch_num in sorted(existing_chapters.keys()):
-            if ch_num < current_chapter:
-                # Limit context to 1000 chars per chapter to avoid token limits
-                context += f"\n--- Chapter {ch_num} ---\n{existing_chapters[ch_num][:1000]}...\n"
-        
-        return context
-    
-    def _create_chapter_generation_prompt(
-        self,
-        normalized_title: str,
-        synopsis: str,
-        word_count_target: int,
-        character_info: str,
-        outline: str,
-        style_notes: str,
-        context: str
-    ) -> str:
-        """Create the system prompt for chapter generation."""
-        return f"""You are a novelist writing {normalized_title} of a novel.
+        system_prompt = f"""You are a novelist writing {normalized_title} of a novel.
 
 NOVEL INFORMATION:
 - Synopsis: {synopsis}
@@ -167,6 +91,15 @@ Focus on:
 
 IMPORTANT: Use the exact chapter title format "{normalized_title}" at the beginning of your response.
 Write the chapter content directly without any meta-commentary."""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please write {normalized_title}"
+            }
+        ]
+        
+        return await self._make_request(messages, system_prompt)
     
     async def generate_character_description(
         self,
@@ -176,28 +109,7 @@ Write the chapter content directly without any meta-commentary."""
         story_context: str = "",
     ) -> str:
         """Generate detailed character description."""
-        system_prompt = self._create_character_prompt(character_name, role, basic_info, story_context)
-        
-        messages = [
-            {
-                "role": "user",
-                "content": f"Please create a detailed character profile for {character_name}."
-            }
-        ]
-        
-        # Character descriptions are usually shorter, so disable streaming
-        self.use_streaming = False
-        return await self._make_request(messages, system_prompt)
-    
-    def _create_character_prompt(
-        self,
-        character_name: str,
-        role: str,
-        basic_info: str,
-        story_context: str
-    ) -> str:
-        """Create the system prompt for character generation."""
-        return f"""You are a character development expert helping to flesh out a character for a novel.
+        system_prompt = f"""You are a character development expert helping to flesh out a character for a novel.
 
 CHARACTER BASICS:
 - Name: {character_name}
@@ -217,6 +129,15 @@ Create a detailed character profile including:
 - Relationships with other characters
 
 Make the character feel real, complex, and three-dimensional."""
+        
+        messages = [
+            {
+                "role": "user",
+                "content": f"Please create a detailed character profile for {character_name}."
+            }
+        ]
+        
+        return await self._make_request(messages, system_prompt)
     
     async def generate_chapter_outline(
         self,
@@ -257,7 +178,6 @@ Structure the outline with clear beats that can guide the actual writing."""
             }
         ]
         
-        self.use_streaming = False
         return await self._make_request(messages, system_prompt)
     
     async def analyze_style(self, text_sample: str) -> Dict[str, Any]:
@@ -273,20 +193,7 @@ Structure the outline with clear beats that can guide the actual writing."""
 - Literary devices used
 - Overall writing style characteristics
 
-Provide specific examples and actionable insights for maintaining consistency.
-
-Format your response as JSON with the following structure:
-{
-    "sentence_length": "short/medium/long/varies",
-    "vocabulary_level": "basic/intermediate/advanced",
-    "tone": "formal/casual/narrative/etc",
-    "pov": "first_person/third_person/etc",
-    "dialogue_style": "description of dialogue style",
-    "pacing": "fast/moderate/slow/varies",
-    "literary_devices": ["device1", "device2"],
-    "overall_style": "comprehensive style description",
-    "consistency_tips": ["tip1", "tip2"]
-}"""
+Provide specific examples and actionable insights for maintaining consistency."""
         
         messages = [
             {
@@ -295,21 +202,16 @@ Format your response as JSON with the following structure:
             }
         ]
         
-        self.use_streaming = False
         response = await self._make_request(messages, system_prompt)
         
-        # Try to parse as JSON
-        try:
-            return json.loads(response)
-        except json.JSONDecodeError:
-            # Fallback to basic structure
-            return {
-                "analysis": response,
-                "sentence_length": "varies",
-                "vocabulary_level": "intermediate",
-                "tone": "narrative",
-                "pov": "third_person",
-            }
+        # Parse response into structured format (simplified)
+        return {
+            "analysis": response,
+            "sentence_length": "varies",  # Could implement actual analysis
+            "vocabulary_level": "intermediate",
+            "tone": "narrative",
+            "pov": "third_person",
+        }
     
     async def check_consistency(
         self,
@@ -318,9 +220,6 @@ Format your response as JSON with the following structure:
         story_context: str,
     ) -> List[str]:
         """Check manuscript for consistency issues."""
-        # Limit manuscript length to avoid token limits
-        manuscript_excerpt = manuscript[:4000] if len(manuscript) > 4000 else manuscript
-        
         system_prompt = f"""You are an editor checking for consistency issues in a manuscript.
 
 CHARACTER INFORMATION:
@@ -336,24 +235,22 @@ Review the manuscript and identify any consistency issues such as:
 - Plot contradictions
 - Setting inconsistencies
 
-Provide specific examples and suggestions for fixes.
-Format each issue on a new line starting with "ISSUE:" for easy parsing."""
+Provide specific examples and suggestions for fixes."""
         
         messages = [
             {
                 "role": "user",
-                "content": f"Please check this manuscript for consistency issues:\n\n{manuscript_excerpt}..."
+                "content": f"Please check this manuscript for consistency issues:\n\n{manuscript[:4000]}..."
             }
         ]
         
-        self.use_streaming = False
         response = await self._make_request(messages, system_prompt)
         
-        # Parse response into list of issues
+        # Parse response into list of issues (simplified)
         issues = []
         for line in response.split('\n'):
-            if line.strip().startswith('ISSUE:'):
-                issues.append(line.strip()[6:].strip())
+            if line.strip() and ('inconsistency' in line.lower() or 'error' in line.lower()):
+                issues.append(line.strip())
         
         return issues
     
@@ -384,7 +281,6 @@ Be specific and provide examples where possible."""
             }
         ]
         
-        self.use_streaming = False
         return await self._make_request(messages, system_prompt)
     
     async def expand_chapter(
@@ -399,9 +295,6 @@ Be specific and provide examples where possible."""
         outline: str,
     ) -> str:
         """Expand an existing chapter with additional content."""
-        
-        # Limit current content to avoid token limits
-        content_excerpt = current_content[:3000] if len(current_content) > 3000 else current_content
         
         system_prompt = f"""You are a professional novelist expanding Chapter {chapter_number} of a novel.
 
@@ -419,8 +312,8 @@ OUTLINE CONTEXT:
 EXPANSION NOTES:
 {expansion_notes}
 
-CURRENT CHAPTER CONTENT (excerpt):
-{content_excerpt}
+CURRENT CHAPTER CONTENT:
+{current_content}
 
 Your task is to expand this chapter by adding approximately {target_words} words while:
 - Maintaining the existing narrative flow and style
@@ -438,8 +331,6 @@ Provide ONLY the expanded content that should be added, not the entire chapter."
             }
         ]
         
-        # Enable streaming for expansion if target is large
-        self.use_streaming = target_words > 1000
         return await self._make_request(messages, system_prompt)
     
     async def analyze_chapter(
@@ -454,11 +345,13 @@ Provide ONLY the expanded content that should be added, not the entire chapter."
     ) -> Dict[str, Any]:
         """Analyze a chapter and provide improvement suggestions."""
         
-        context = self._build_analysis_context(existing_chapters)
-        focus_areas_str = ", ".join(focus_areas)
+        context = ""
+        if existing_chapters:
+            context = "\n\nPREVIOUS CHAPTERS FOR CONTEXT:\n"
+            for ch_num in sorted(existing_chapters.keys()):
+                context += f"\n--- Chapter {ch_num} (excerpt) ---\n{existing_chapters[ch_num][:500]}...\n"
         
-        # Limit content length
-        content_excerpt = content[:4000] if len(content) > 4000 else content
+        focus_areas_str = ", ".join(focus_areas)
         
         system_prompt = f"""You are a professional editor analyzing Chapter {chapter_number} of a novel.
 
@@ -474,20 +367,23 @@ FOCUS AREAS: {focus_areas_str}
 CONTEXT:
 {context}
 
-CHAPTER TO ANALYZE (excerpt if truncated):
-{content_excerpt}
+CHAPTER TO ANALYZE:
+{content}
 
 Provide a detailed analysis focusing on the specified areas. Structure your response as JSON with the following format:
 {{
     "overall_assessment": "Brief overall assessment",
-    "strengths": ["strength1", "strength2"],
-    "areas_for_improvement": ["issue1", "issue2"],
+    "strengths": ["strength1", "strength2", ...],
+    "areas_for_improvement": ["issue1", "issue2", ...],
     "specific_suggestions": [
-        {{"area": "focus_area", "suggestion": "specific suggestion", "priority": "high/medium/low"}}
+        {{"area": "focus_area", "suggestion": "specific suggestion", "priority": "high/medium/low"}},
+        ...
     ],
-    "continuity_issues": ["issue1", "issue2"],
+    "continuity_issues": ["issue1", "issue2", ...],
     "style_notes": "Style and voice observations"
-}}"""
+}}
+
+Be specific and actionable in your suggestions."""
         
         messages = [
             {
@@ -496,12 +392,13 @@ Provide a detailed analysis focusing on the specified areas. Structure your resp
             }
         ]
         
-        self.use_streaming = False
         response = await self._make_request(messages, system_prompt)
         
+        # Try to parse as JSON, fall back to structured text
         try:
+            import json
             return json.loads(response)
-        except json.JSONDecodeError:
+        except:
             return {
                 "overall_assessment": "Analysis completed",
                 "analysis_text": response,
@@ -511,17 +408,6 @@ Provide a detailed analysis focusing on the specified areas. Structure your resp
                 "continuity_issues": [],
                 "style_notes": ""
             }
-    
-    def _build_analysis_context(self, existing_chapters: Dict[int, str]) -> str:
-        """Build context for chapter analysis."""
-        if not existing_chapters:
-            return ""
-        
-        context = "\n\nPREVIOUS CHAPTERS FOR CONTEXT:\n"
-        for ch_num in sorted(existing_chapters.keys())[:3]:  # Limit to 3 chapters
-            context += f"\n--- Chapter {ch_num} (excerpt) ---\n{existing_chapters[ch_num][:500]}...\n"
-        
-        return context
     
     async def generate_outline(
         self,
@@ -538,7 +424,7 @@ Provide a detailed analysis focusing on the specified areas. Structure your resp
         context = ""
         if existing_chapters:
             context = "\n\nEXISTING CHAPTERS:\n"
-            for ch_num in sorted(existing_chapters.keys())[:3]:  # Limit context
+            for ch_num in sorted(existing_chapters.keys()):
                 context += f"\nChapter {ch_num}: {existing_chapters[ch_num][:300]}...\n"
         
         system_prompt = f"""You are a story development expert creating a detailed outline.
@@ -579,8 +465,6 @@ Format as:
             }
         ]
         
-        # Enable streaming for multi-chapter outlines
-        self.use_streaming = (chapter_end - chapter_start) > 3
         return await self._make_request(messages, system_prompt)
     
     async def check_continuity(
@@ -592,16 +476,9 @@ Format as:
     ) -> Dict[str, Any]:
         """Check continuity across multiple chapters."""
         
-        # Build condensed chapter text to avoid token limits
         chapters_text = ""
         for ch_num in sorted(chapter_contents.keys()):
-            # Take beginning and end of each chapter for continuity check
-            chapter = chapter_contents[ch_num]
-            if len(chapter) > 1000:
-                excerpt = chapter[:500] + "\n...\n" + chapter[-500:]
-            else:
-                excerpt = chapter
-            chapters_text += f"\n--- Chapter {ch_num} ---\n{excerpt}\n"
+            chapters_text += f"\n--- Chapter {ch_num} ---\n{chapter_contents[ch_num]}\n"
         
         system_prompt = f"""You are a continuity editor checking for consistency issues across chapters.
 
@@ -614,7 +491,7 @@ CHARACTER INFORMATION:
 OUTLINE:
 {outline}
 
-CHAPTERS TO ANALYZE (excerpts):
+CHAPTERS TO ANALYZE:
 {chapters_text}
 
 Check for continuity issues including:
@@ -628,10 +505,11 @@ Provide results as JSON:
 {{
     "continuity_score": "1-10 rating",
     "issues_found": [
-        {{"type": "character/plot/timeline/setting", "chapter": number, "description": "specific issue", "severity": "high/medium/low"}}
+        {{"type": "character/plot/timeline/setting", "chapter": number, "description": "specific issue", "severity": "high/medium/low"}},
+        ...
     ],
-    "suggestions": ["suggestion1", "suggestion2"],
-    "character_consistency": {{"character_name": "assessment"}},
+    "suggestions": ["suggestion1", "suggestion2", ...],
+    "character_consistency": {{"character_name": "assessment", ...}},
     "timeline_assessment": "overall timeline consistency"
 }}"""
         
@@ -642,12 +520,12 @@ Provide results as JSON:
             }
         ]
         
-        self.use_streaming = False
         response = await self._make_request(messages, system_prompt)
         
         try:
+            import json
             return json.loads(response)
-        except json.JSONDecodeError:
+        except:
             return {
                 "continuity_score": "Unable to parse",
                 "analysis_text": response,
@@ -705,11 +583,12 @@ Format as JSON:
             "chapter_number": {next_chapter_number},
             "title": "suggested title",
             "summary": "brief chapter summary",
-            "key_events": ["event1", "event2"],
+            "key_events": ["event1", "event2", ...],
             "character_focus": "which characters are featured",
             "plot_advancement": "how this advances the overall plot",
             "estimated_word_count": number
-        }}
+        }},
+        ...
     ]
 }}"""
         
@@ -720,13 +599,13 @@ Format as JSON:
             }
         ]
         
-        self.use_streaming = False
         response = await self._make_request(messages, system_prompt)
         
         try:
+            import json
             result = json.loads(response)
             return result.get("suggestions", [])
-        except json.JSONDecodeError:
+        except:
             return [{"analysis_text": response, "chapter_number": next_chapter_number}]
     
     async def find_missing_chapters(
@@ -765,7 +644,8 @@ Format as JSON:
             "plot_points": ["key events this chapter should cover"],
             "placement_reason": "why it should go in this position",
             "priority": "high/medium/low"
-        }}
+        }},
+        ...
     ],
     "outline_analysis": "assessment of outline completeness"
 }}"""
@@ -777,13 +657,13 @@ Format as JSON:
             }
         ]
         
-        self.use_streaming = False
         response = await self._make_request(messages, system_prompt)
         
         try:
+            import json
             result = json.loads(response)
             return result.get("missing_chapters", [])
-        except json.JSONDecodeError:
+        except:
             return [{"analysis_text": response}]
     
     def set_model(self, model_name: str) -> None:
@@ -793,7 +673,3 @@ Format as JSON:
     def set_max_tokens(self, max_tokens: int) -> None:
         """Set the maximum tokens for responses."""
         self.max_tokens = max_tokens
-    
-    def enable_streaming(self, enabled: bool = True) -> None:
-        """Enable or disable streaming for long operations."""
-        self.use_streaming = enabled

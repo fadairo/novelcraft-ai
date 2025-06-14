@@ -5,6 +5,14 @@
 **Use this excerpt as a stylistic foundation**:
 "THE MADNESS of an autumn prairie cold front coming through. You could feel it: something terrible was going to happen. The sun low in the sky, a minor light, a cooling star. Gust after gust of disorder. Trees restless, temperatures falling, the whole northern religion of things coming to an end. No children in the yards here. Shadows lengthened on yellowing zoysia. Red oaks and pin oaks and swamp white oaks rained acorns on houses with no mortgage. Storm windows shuddered in the empty bedrooms. And the drone and hiccup of a clothes dryer, the nasal contention of a leaf blower, the ripening of local apples in a paper bag, the smell of the gasoline with which Alfred Lambert had cleaned the paintbrush from his morning painting of the wicker love seat."
 
+- Remove ALL meta-commentary immediately
+
+**Writing a literary novel**
+
+- Do not rush scenes
+- Use the characters mentioned in the outline
+- Transition smoothly between scenes
+
 ## CORE PRINCIPLES: SOPHISTICATED HUMANITY
 
 ### 1. **Embrace Literary Complexity While Adding Human Touches**
@@ -35,7 +43,7 @@
 
 ### 5. **Include Mundane Details That Carry Weight**
 
-- **KEEP**: Franzen-style attention to everyday objects and actions
+- **KEEP**: Pay attention to everyday objects and actions
 - **ADD**: Occasional details that lead nowhere, just like real observation
 - **EXAMPLE**: "The dishwasher needed emptying. This fact sat in her consciousness like a small stone in a shoe—noticeable but not quite painful enough to address immediately."
 
@@ -43,7 +51,7 @@
 
 ### 1. **Natural Thought Progression**
 
-- Write in **Close Third-Person**
+- Maintain Consistent POV (Close Third-Person)
 - Follow associative logic rather than linear argument
 - Allow thoughts to spiral and return
 - Include moments of self-correction without excessive flagging
@@ -72,6 +80,7 @@
 - Present memories as layered and sometimes contradictory
 - Use specific details that might be slightly wrong
 - Show the effort of remembering
+- Remove ALL Meta-Commentary
 - **EXAMPLE**: "It was 1987—the year of the flood, or maybe that was '88. But definitely the summer they'd repainted the house that awful yellow, because she remembered the paint fumes mixing with the smell of the overflowing river."
 
 ### 5. **Physical Reality Intrusions**
@@ -154,20 +163,6 @@ Include 3-4 factual errors per chapter that are stated with complete confidence:
 - Historical events in wrong years
 - Ages that don't match timelines
 
-### 3. **Abandoned Thought Threads**
-
-Start 2-3 explanations or descriptions per chapter that simply stop mid-way:
-
-**Instructions**: Begin explaining something important, then abandon it without resolution.
-
-**Examples**:
-
-```
-The thing about foster care in Louisiana is that they have this system where—actually, it doesn't matter. The point is, I ended up with the Hendersons.
-
-I should explain about Malcolm's background. He'd been in prison for—well, the important thing is he understood what we were going through.
-```
-
 ### 4. **Prosaic Quality Variation**
 
 Deliberately include paragraphs of varying writing quality:
@@ -181,20 +176,6 @@ Deliberately include paragraphs of varying writing quality:
 - Rushed explanations
 - Mixed metaphors that don't work
 - Overly simple vocabulary suddenly
-
-### 5. **Meta-Commentary Interruptions**
-
-Add self-aware moments where the narrator comments on their own storytelling:
-
-**Instructions**: 2-3 times per chapter, have the narrator interrupt themselves with meta-commentary.
-
-**Examples**:
-
-- "I'm telling this all wrong."
-- "This probably doesn't make sense unless you were there."
-- "I should have started with the important part."
-- "Am I explaining this right?"
-- "This sounds more dramatic than it was."
 
 ### 6. **Linguistic Inconsistency Patterns**
 
@@ -212,7 +193,7 @@ Create deliberate inconsistencies in how things are described:
 
 Humans naturally repeat certain phrases or ideas without realizing it:
 
-**Instructions**: Choose 2-3 phrases or concepts and repeat them 3-4 times throughout the chapter, as if the writer doesn't realize they're doing it.
+**Instructions**: Choose 2-3 phrases or concepts and repeat them 1-2 times throughout the chapter, as if the writer doesn't realize they're doing it.
 
 **Examples**:
 

@@ -49,7 +49,7 @@ Now, following the above style instructions carefully, {base_prompt}"""
         chapter_number: int,
         title: str = None,
         outline_section: str = "",
-        word_count_target: int = 2500,
+        word_count_target: int = 3500,
         context_chapters: List[int] = None,
     ) -> str:
         """Generate a new chapter based on project context with revision instructions."""
@@ -96,7 +96,7 @@ Now, following the above style instructions carefully, {base_prompt}"""
         chapter_number: int,
         title: str = None,
         outline_section: str = "",
-        word_count_target: int = 2000,
+        word_count_target: int = 3500,
         context_chapters: List[int] = None,
     ) -> bool:
         """Generate a chapter and save it to file."""

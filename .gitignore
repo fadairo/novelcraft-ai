@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+book3_batonrouge/
 spoils/
 rourkes/
 entitled/
