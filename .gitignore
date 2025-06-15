@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+florentine/
 book3_batonrouge/
 spoils/
 rourkes/
