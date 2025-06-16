@@ -47,6 +47,15 @@
 - **ADD**: Occasional details that lead nowhere, just like real observation
 - **EXAMPLE**: "The dishwasher needed emptying. This fact sat in her consciousness like a small stone in a shoe—noticeable but not quite painful enough to address immediately."
 
+### 6. **Writing great chapters and scenes**
+
+- Every scene has to have an inciting incident. Something has to happen otherwise it is just description. This can be anything from a bomb exploding in the bathroom to the character wanting a sandwich.
+- Rising Action (Turn) — This is much more than what happens next. It must ‘turn’ the action, which basically mean that something occurs which cannot be undone.
+- Crisis — This is the question moment. Will they or won’t they?
+- Climax — Answer the crisis question. They will! Or… They won’t!
+- Resolution — Tell the audience how the character reacts to this climax.
+- See how each scene/chapter fits into the structure above? I literally write it at the top of each re-write page, then plug in the exact moments to make sure it all works. The next step is to bridge your scene to the next inciting incident. This can be done as an exciting cliffhanger or an ordinary event, but it must be causal, which means it happens because of the last scene.
+
 ## SPECIFIC TECHNIQUES FOR HUMANIZATION
 
 ### 1. **Natural Thought Progression**
@@ -251,42 +260,11 @@ Add moments where the physical act of writing/remembering interrupts the flow:
 - Use correct grammatical structure but also include creative deviations typical of human writing
 - Avoid Predictable Rhythm by varyng Syntax leading to a unpredictable rhythm.
 
-## IMPLEMENTATION HIERARCHY
-
-**Priority 1 (Use Most Frequently)**:
-
-- Tangential memories
-- Meta-commentary
-- Natural repetition
-
-**Priority 2 (Use Moderately)**:
-
-- Abandoned thoughts
-- Chronological confusion
-- Linguistic inconsistency
-
-**Priority 3 (Use Sparingly but Importantly)**:
-
-- Wrong confident details
-- Unfinished scenes
-- Prosaic quality drops
-
-## BALANCE FORMULA
-
-For every 2,000 words:
-
-- 1-2 tangential memories
-- 2-3 meta-interruptions
-- 3-4 instances of natural repetition
-- 2 abandoned thought threads
-- 1-2 chronological confusions
-- 1 significant prosaic quality drop
-- 1 confidently wrong detail
-
 ## CRITICAL REMINDER
 
 These techniques should feel NATURAL and UNCONSCIOUS, not deliberate. The narrator isn't trying to be confusing—they're just human, with human memory and human limitations. The key is making these "flaws" feel like authentic products of:
 
+- Use vivid detail rather than vague allusions
 - Emotional overwhelm
 - Time's effect on memory
 - The difficulty of organizing thoughts

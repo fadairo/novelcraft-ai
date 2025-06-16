@@ -125,7 +125,6 @@ class RevisionResult:
     revised_word_count: int
     success: bool
     error_message: Optional[str] = None
-    draft_path: Optional[Path] = None  # Added to track where draft was saved
 
 # ============================================================================
 # Exceptions
@@ -185,38 +184,12 @@ class FileHandler:
         except Exception as e:
             raise FileOperationError(f"Failed to write {file_path}: {e}")
     
-    def copy_file(self, source: Path, destination: Path) -> None:
-        """Copy a file from source to destination."""
-        try:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            content = self.read_file(source)
-            self.write_file(destination, content)
-        except Exception as e:
-            raise FileOperationError(f"Failed to copy {source} to {destination}: {e}")
-    
     def find_files(self, directory: Path, patterns: List[str]) -> List[Path]:
         """Find files matching patterns in directory."""
         files = []
         for pattern in patterns:
             files.extend(directory.glob(pattern))
         return sorted(set(files))
-    
-    def get_next_draft_number(self, base_path: Path, draft_dir: Path) -> int:
-        """Get the next available draft number for a file."""
-        base_name = base_path.stem
-        existing_drafts = list(draft_dir.glob(f"{base_name}_*.md"))
-        
-        if not existing_drafts:
-            return 1
-        
-        # Extract draft numbers
-        draft_numbers = []
-        for draft in existing_drafts:
-            match = re.search(r'_(\d+)$', draft.stem)
-            if match:
-                draft_numbers.append(int(match.group(1)))
-        
-        return max(draft_numbers) + 1 if draft_numbers else 1
 
 # ============================================================================
 # API Client Wrapper
@@ -376,8 +349,8 @@ class ProjectLoader:
             files = self.file_handler.find_files(search_dir, self.config.chapter_patterns)
             
             for file_path in files:
-                # Skip revised/backup/draft files
-                if any(skip in str(file_path).lower() for skip in ['enhanced', 'backup', 'revised', 'draft']):
+                # Skip revised/backup files
+                if any(skip in str(file_path).lower() for skip in ['enhanced', 'backup', 'revised']):
                     continue
                 
                 chapter_num = self._extract_chapter_number(file_path)
@@ -858,14 +831,11 @@ class ReportGenerator:
         for result in sorted(results, key=lambda r: r.chapter_number):
             if result.success:
                 expansion = result.revised_word_count / result.original_word_count
-                detail = (
+                chapter_details.append(
                     f"- Chapter {result.chapter_number}: "
                     f"{result.original_word_count:,} → {result.revised_word_count:,} words "
                     f"({expansion:.1f}x expansion)"
                 )
-                if result.draft_path:
-                    detail += f"\n  - Original saved to: {result.draft_path.relative_to(project_dir)}"
-                chapter_details.append(detail)
             else:
                 chapter_details.append(
                     f"- Chapter {result.chapter_number}: FAILED - {result.error_message}"
@@ -913,18 +883,12 @@ Each chapter was revised according to its plan, with emphasis on:
 - Maintaining novel-wide consistency
 - Enhancing literary quality
 
-### 4. Version Control
-- Original chapters were saved to /chapters/drafts with version numbers
-- Revised chapters replaced the original files
-- All versions are preserved for comparison
-
 ## Files Created
 
 See the project directory for:
 - Analysis files (chapter_X_analysis.md)
 - Revision plans (revision_plans/chapter_XX_revision_plan.md)
-- Draft versions (chapters/drafts/*)
-- Updated chapters (in original locations)
+- Revised chapters (revised/chapter_X_revised.md)
 - This report (chapter_revision_report.md)
 
 ## Next Steps
@@ -938,7 +902,7 @@ See the project directory for:
 
 The revision process maintained the context of the full novel while focusing on the selected chapters. 
 Each revised chapter should now better serve its role in the overall narrative while demonstrating 
-enhanced literary quality. Original versions are preserved in the drafts folder for reference.
+enhanced literary quality.
 """
         
         # Save report
@@ -1043,29 +1007,13 @@ class ChapterRevisionController:
         
         # Step 3: Revision
         results = []
-        
-        # Create drafts directory
-        drafts_dir = project_path / 'chapters' / 'drafts'
-        drafts_dir.mkdir(parents=True, exist_ok=True)
+        revised_dir = project_path / 'revised'
+        revised_dir.mkdir(exist_ok=True)
         
         for chapter_num, chapter in valid_targets.items():
             logger.info(f"Revising chapter {chapter_num}")
             
-            # Step 3a: Save original as draft BEFORE revision
-            draft_number = self.file_handler.get_next_draft_number(
-                chapter.file_path, drafts_dir
-            )
-            draft_filename = f"{chapter.file_path.stem}_{draft_number:02d}.md"
-            draft_path = drafts_dir / draft_filename
-            
-            try:
-                self.file_handler.copy_file(chapter.file_path, draft_path)
-                logger.info(f"Saved original chapter {chapter_num} to {draft_path.relative_to(project_path)}")
-            except Exception as e:
-                logger.error(f"Failed to save draft for chapter {chapter_num}: {e}")
-                draft_path = None
-            
-            # Step 3b: Get context chapters and revise
+            # Get context chapters
             context_chapters = {
                 num: all_chapters[num] 
                 for num in context_map.get(chapter_num, [])
@@ -1076,22 +1024,18 @@ class ChapterRevisionController:
             result = self.reviser.revise_chapter(
                 chapter, plans[chapter_num], context_chapters
             )
-            result.draft_path = draft_path
             results.append(result)
             
-            # Step 3c: Save revised content to ORIGINAL location
+            # Save revised chapter
             if result.success:
-                try:
-                    self.file_handler.write_file(chapter.file_path, result.revised_content)
-                    logger.info(
-                        f"Chapter {chapter_num} revised and saved to original location: "
-                        f"{result.original_word_count} → {result.revised_word_count} words "
-                        f"({result.revised_word_count/result.original_word_count:.1f}x)"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to save revised chapter {chapter_num}: {e}")
-                    result.success = False
-                    result.error_message = f"Failed to save: {e}"
+                revised_file = revised_dir / f'{chapter.file_path.stem}_revised.md'
+                self.file_handler.write_file(revised_file, result.revised_content)
+                
+                logger.info(
+                    f"Chapter {chapter_num}: "
+                    f"{result.original_word_count} → {result.revised_word_count} words "
+                    f"({result.revised_word_count/result.original_word_count:.1f}x)"
+                )
             else:
                 logger.error(f"Failed to revise chapter {chapter_num}: {result.error_message}")
         

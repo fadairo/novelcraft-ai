@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+excellency/
 florentine/
 book3_batonrouge/
 spoils/
