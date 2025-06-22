@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+instructions/
 excellency/
 florentine/
 book3_batonrouge/

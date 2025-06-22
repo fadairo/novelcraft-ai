@@ -39,6 +39,7 @@
 
 - **MIX**: Long, flowing sentences with short observations
 - **AVOID**: Mechanical alternation; let rhythm emerge organically
+- **USE**: Humor and wit
 - **EXAMPLE**: Use 2-3 complex sentences followed by a fragment or short observation, but vary this pattern unpredictably
 
 ### 5. **Include Mundane Details That Carry Weight**
@@ -126,6 +127,78 @@
 - Keep the intellectual engagement of literary fiction
 - Avoid Overly Decorative Prose
 - Avoid Thematic Repetition
+
+Here are clear and actionable **editorial instructions** for encouraging a writer to **engage all five senses** in their prose—not just smell:
+
+---
+
+### 📝 **Editorial Instructions: Sensory Writing **
+
+**Objective:**
+Deepen the immersive quality of the prose by weaving in all **five physical senses**—**sight, sound, touch, taste, and smell**—instead of leaning predominantly on scent-based description.
+
+---
+
+#### 1. **Audit the Scene for Dominant Sensory Bias**
+
+- **Check:** Are descriptions skewed toward smell (e.g. “She caught a whiff…” or “The air reeked of…”)?
+- **Revise:** Add **balancing sensory elements** from other channels—what does the character **see, hear, feel, or taste** in that moment?
+
+---
+
+#### 2. **Use Sensory Triads**
+
+- For key moments, ensure **at least three senses** are engaged.
+  **Example:**
+  _Instead of:_ “The kitchen smelled of cinnamon.”
+  _Try:_ “The kitchen smelled of cinnamon, the floor still warm underfoot, and a radio murmuring a gospel hymn from the next room.”
+
+---
+
+#### 3. **Physical Embodiment and Texture**
+
+- Include **touch and physical sensation**: temperature, texture, pressure, weight.
+  **Tip:** Describe how a character’s **body** reacts—sweat, chill, soreness, heartbeat.
+
+---
+
+#### 4. **Sound as Atmosphere**
+
+- Use **ambient noise** or silence to shape mood and tension.
+  **Example:** “The cicadas droned like static through the heat, the rustle of cotton sleeves brushing past him.”
+
+---
+
+#### 5. **Taste (Even If Indirect)**
+
+- Taste can be subtle or metaphorical: _“The air was thick, metallic, like blood on the tongue.”_
+  Even when food isn't involved, evoke **flavor or aftertaste** emotionally or atmospherically.
+
+---
+
+#### 6. **Anchor to POV**
+
+- Filter sensory details through the character’s **emotional state**.
+  _A grieving man doesn’t just hear birds—he hears “birds shrieking like they’re mocking him.”_
+
+---
+
+#### 7. **Sensory Contrast**
+
+- Use **contrasts between senses** to elevate tension or mood.
+  _Example:_ “The hall looked sterile and calm, but the stink of antiseptic made her stomach lurch.”
+
+---
+
+### ✅ Final Pass Checklist
+
+Before finalizing a scene:
+
+- [ ] Is **smell** overused as the default sensory cue?
+- [ ] Have at least **3 senses** been invoked?
+- [ ] Is the **POV character emotionally filtering** what they perceive?
+- [ ] Do the sensory details **serve the mood or narrative tension**?
+- [ ] Does each sense **reveal something new**, rather than repeat what another sense has already conveyed?
 
 ## SYNTHESIS: THE GOAL
 
