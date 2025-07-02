@@ -9,6 +9,7 @@
 
 **Writing a literary novel**
 
+- You MUST revise chapters in the style of Sergio de La Pava, David Foster Wallace, Don DeLillo, or Thomas Pynchon.
 - Do not rush scenes
 - Use the characters mentioned in the outline
 - Transition smoothly between scenes
@@ -345,3 +346,7 @@ These techniques should feel NATURAL and UNCONSCIOUS, not deliberate. The narrat
 - The way people actually tell stories
 
 The goal is text that feels like it was written by someone talented but human, on a real day, with real distractions and limitations, not edited to perfection.
+
+## WORD LENGTH
+
+The finished revision must be between 3500 and 4500 words

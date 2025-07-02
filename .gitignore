@@ -51,6 +51,7 @@ config.yaml
 .env
 
 # Generated content
+revision_instructions.md
 instructions/
 excellency/
 florentine/
