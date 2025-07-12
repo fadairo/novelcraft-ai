@@ -9,7 +9,7 @@
 
 **Writing a literary novel**
 
-- You MUST revise chapters in the style of Sergio de La Pava, David Foster Wallace, Don DeLillo, or Thomas Pynchon.
+- You MUST revise chapters in the style of Sergio de La Pava and Jonathan Franzen.
 - Do not rush scenes
 - Use the characters mentioned in the outline
 - Transition smoothly between scenes
