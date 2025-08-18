@@ -66,9 +66,12 @@ clowns/
 _glasshouse/
 glasshouse/
 generated/
+money/
 wombs/
 daniels/
+junkmiles/
 manuscripts/draft_*
+*faber*.*
 
 # API keys
 .anthropic_key

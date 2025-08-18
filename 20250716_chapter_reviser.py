@@ -3,7 +3,7 @@
 chapter_reviser.py - Professional Chapter Revision Tool
 
 A modular, robust tool for revising novel chapters with AI assistance.
-Supports selective chapter revision with context awareness and STRICT word count targeting.
+Supports selective chapter revision with context awareness.
 """
 
 import os
@@ -49,7 +49,7 @@ class Config:
     
     # Model Configuration
     models: Dict[str, str] = field(default_factory=lambda: {
-            "simple": "claude-sonnet-4-20250514",
+            "simple": "claude-3-5-sonnet-20241022",
             "medium": "claude-opus-4-20250514",
             "complex": "claude-opus-4-20250514",
     })
@@ -72,10 +72,8 @@ class Config:
         'chapters', 'content', 'manuscript', '.'
     ])
     
-    # Word Count Settings - FIXED
-    default_target_words: Optional[int] = None  # No default expansion
-    max_expansion_ratio: float = 1.05  # Maximum 5% expansion allowed
-    min_compression_ratio: float = 0.95  # Minimum 95% of original (5% compression max)
+    # Expansion Settings
+    expansion_factor: float = 0.9
     
     # Encoding Settings
     file_encodings: List[str] = field(default_factory=lambda: [
@@ -96,20 +94,7 @@ class Chapter:
     
     def __post_init__(self):
         self.file_path = Path(self.file_path)
-        self.word_count = self._count_words(self.content)
-    
-    def _count_words(self, text: str) -> int:
-        """Accurate word counting."""
-        # Remove markdown formatting
-        text = re.sub(r'^#{1,6}\s+.*$', '', text, flags=re.MULTILINE)
-        text = re.sub(r'\*\*([^*]+)\*\*', r'\1', text)
-        text = re.sub(r'\*([^*]+)\*', r'\1', text)
-        text = re.sub(r'`([^`]+)`', r'\1', text)
-        
-        # Split and count real words
-        words = [word.strip('.,!?;:"()[]{}') for word in text.split() if word.strip()]
-        words = [word for word in words if word and not word.isspace()]
-        return len(words)
+        self.word_count = len(self.content.split())
 
 @dataclass
 class ProjectContext:
@@ -128,8 +113,6 @@ class RevisionPlan:
     analysis: str
     plan_content: str
     target_word_count: int
-    original_word_count: int
-    word_count_strategy: str  # NEW: "maintain", "expand", "compress"
     created_at: datetime.datetime = field(default_factory=datetime.datetime.now)
 
 @dataclass
@@ -140,11 +123,9 @@ class RevisionResult:
     revised_content: str
     original_word_count: int
     revised_word_count: int
-    target_word_count: int
     success: bool
     error_message: Optional[str] = None
-    draft_path: Optional[Path] = None
-    within_target: bool = False  # NEW: tracks if revision met target
+    draft_path: Optional[Path] = None  # Added to track where draft was saved
 
 # ============================================================================
 # Exceptions
@@ -408,7 +389,7 @@ class ProjectLoader:
                                 number=chapter_num,
                                 file_path=file_path,
                                 content=content,
-                                word_count=0  # Will be calculated in __post_init__
+                                word_count=len(content.split())
                             )
                             logger.debug(f"Loaded chapter {chapter_num} from {file_path}")
                     except Exception as e:
@@ -551,12 +532,12 @@ Provide comprehensive analysis covering:
 - Thematic disconnects
 
 ## REVISION OPPORTUNITIES
-- Specific areas for improvement (NOT expansion)
+- Specific areas for expansion
 - Literary enhancement possibilities
 - Character development potential
 - Atmospheric and sensory improvements
 
-Focus on how this chapter fits within the larger novel while identifying specific improvements that can be made WITHOUT significantly changing the word count."""
+Focus on how this chapter fits within the larger novel while identifying specific improvements."""
 
 # ============================================================================
 # Revision Planning
@@ -570,40 +551,14 @@ class RevisionPlanner:
         self.config = config
     
     def create_plan(self, chapter: Chapter, analysis: str, 
-                   context: ProjectContext, target_words: Optional[int] = None) -> RevisionPlan:
+                   context: ProjectContext) -> RevisionPlan:
         """Create a revision plan for a chapter."""
         original_word_count = chapter.word_count
+        max_allowed_expansion = 1.05  # allow no more than 5% expansion
+        target_words = int(min(original_word_count * max_allowed_expansion, original_word_count + 200))
+
         
-        # FIXED: Determine target word count and strategy - DEFAULT TO MAINTAIN LENGTH
-        if target_words is not None:
-            # User specified target
-            target_word_count = target_words
-            logger.info(f"User specified target: {target_word_count} words for chapter {chapter.number}")
-        else:
-            # No target specified - maintain current length (NO EXPANSION)
-            target_word_count = original_word_count
-            logger.info(f"No target specified - maintaining current length: {target_word_count} words for chapter {chapter.number}")
-        
-        # Enforce strict limits if user specified target
-        if target_words is not None:
-            if target_word_count > original_word_count * self.config.max_expansion_ratio:
-                logger.warning(f"Target {target_word_count} exceeds max expansion, capping at {int(original_word_count * self.config.max_expansion_ratio)}")
-                target_word_count = int(original_word_count * self.config.max_expansion_ratio)
-            elif target_word_count < original_word_count * self.config.min_compression_ratio:
-                logger.warning(f"Target {target_word_count} exceeds max compression, capping at {int(original_word_count * self.config.min_compression_ratio)}")
-                target_word_count = int(original_word_count * self.config.min_compression_ratio)
-        
-        # Determine strategy - MUCH STRICTER THRESHOLDS
-        if target_word_count > original_word_count + 50:  # Only expand if 50+ words needed
-            strategy = "expand"
-        elif target_word_count < original_word_count - 50:  # Only compress if 50+ words removed
-            strategy = "compress"
-        else:
-            strategy = "maintain"
-        
-        logger.info(f"Chapter {chapter.number}: {original_word_count} → {target_word_count} words (strategy: {strategy})")
-        
-        prompt = self._build_planning_prompt(chapter, analysis, context, target_word_count, strategy)
+        prompt = self._build_planning_prompt(chapter, analysis, context, target_words)
         
         try:
             plan_content = self.api_client.complete(
@@ -616,23 +571,15 @@ class RevisionPlanner:
                 chapter_number=chapter.number,
                 analysis=analysis,
                 plan_content=plan_content,
-                target_word_count=target_word_count,
-                original_word_count=original_word_count,
-                word_count_strategy=strategy
+                target_word_count=target_words
             )
         except Exception as e:
             logger.error(f"Failed to create plan for chapter {chapter.number}: {e}")
             raise
     
     def _build_planning_prompt(self, chapter: Chapter, analysis: str,
-                             context: ProjectContext, target_words: int, strategy: str) -> str:
+                             context: ProjectContext, target_words: int) -> str:
         """Build the planning prompt."""
-        strategy_instructions = {
-            "maintain": f"The revision MUST maintain the current word count of approximately {target_words} words (±50 words maximum). Focus ONLY on improving quality, NOT increasing length.",
-            "expand": f"The revision should thoughtfully expand the chapter to exactly {target_words} words by adding meaningful content. Do not exceed {target_words + 50} words.",
-            "compress": f"The revision should compress the chapter to exactly {target_words} words by removing unnecessary content while preserving all essential elements. Do not go below {target_words - 50} words."
-        }
-        
         return f"""Create a detailed revision plan for Chapter {chapter.number} based on the analysis.
 
 CHAPTER ANALYSIS:
@@ -648,27 +595,23 @@ CHARACTERS: {context.characters}
 
 CURRENT WORD COUNT: {chapter.word_count} words
 TARGET WORD COUNT: {target_words} words
-STRATEGY: {strategy.upper()}
-
-WORD COUNT REQUIREMENT:
-{strategy_instructions[strategy]}
 
 Create a structured revision plan with:
 
 ## PRIORITY REVISIONS
 List the most critical improvements needed based on the analysis.
 
-## WORD COUNT STRATEGY
-Specific approach for achieving the target word count:
-- For maintain: Focus on quality improvements without length changes
-- For expand: Identify specific areas for meaningful additions
-- For compress: Identify content to remove or condense
+## EXPANSION STRATEGY
+- Specific scenes to expand
+- Character moments to develop
+- Atmospheric details to add
+- Dialogue opportunities
 
 ## LITERARY ENHANCEMENTS
 - Prose style improvements
 - Thematic elements to strengthen
 - Literary devices to employ
-- Sensory details to include/refine
+- Sensory details to include
 
 ## CONSISTENCY FIXES
 - Character voice adjustments
@@ -688,7 +631,7 @@ Provide numbered, concrete revision tasks:
 2. [Another specific task]
 [Continue with 8-10 specific tasks]
 
-CRITICAL: The revision MUST result in EXACTLY {target_words} words (±50 words maximum). Do not exceed this limit. Focus on meaningful improvements that enhance the chapter's role in the novel while STRICTLY adhering to the word count target. If no target is specified, maintain current length."""
+Focus on meaningful improvements that enhance the chapter's role in the novel while maintaining literary quality."""
 
 # ============================================================================
 # Chapter Revision
@@ -735,47 +678,20 @@ class ChapterReviser:
             # Clean AI commentary
             cleaned_content = self._clean_ai_commentary(revised_content)
             
-            # Count words in revision
-            revised_word_count = chapter._count_words(cleaned_content)
-            
-            # STRICT CHECK: If expansion is excessive without user intent, reject it
-            user_wants_expansion = plan.target_word_count > plan.original_word_count + 50
-            if not user_wants_expansion and revised_word_count > chapter.word_count * 1.1:  # 10% max without explicit expansion request
-                logger.warning(f"Chapter {chapter.number} expanded too much ({revised_word_count} vs {chapter.word_count}), forcing compression...")
-                cleaned_content = self._force_compression(chapter, cleaned_content, plan.original_word_count)
-                revised_word_count = chapter._count_words(cleaned_content)
-            
-            # Check if revision meets target
-            target_tolerance = max(50, plan.target_word_count * 0.05)  # 5% tolerance or 50 words
-            within_target = abs(revised_word_count - plan.target_word_count) <= target_tolerance
-            
-            # If not within target and significantly different, try to fix
-            if not within_target and abs(revised_word_count - plan.target_word_count) > target_tolerance * 2:
-                logger.warning(f"Chapter {chapter.number} revision ({revised_word_count} words) far from target ({plan.target_word_count}), attempting correction...")
-                cleaned_content = self._correct_word_count(
-                    chapter, plan, cleaned_content, revised_word_count
-                )
-                revised_word_count = chapter._count_words(cleaned_content)
-                within_target = abs(revised_word_count - plan.target_word_count) <= target_tolerance
-            
-            # Verify revision is actually different
+            # Verify revision
             if self._is_unchanged(chapter.content, cleaned_content):
                 logger.warning(f"Chapter {chapter.number} unchanged, retrying...")
                 cleaned_content = self._retry_revision(
                     chapter, plan, context_content
                 )
-                revised_word_count = chapter._count_words(cleaned_content)
-                within_target = abs(revised_word_count - plan.target_word_count) <= target_tolerance
             
             return RevisionResult(
                 chapter_number=chapter.number,
                 original_content=chapter.content,
                 revised_content=cleaned_content,
                 original_word_count=chapter.word_count,
-                revised_word_count=revised_word_count,
-                target_word_count=plan.target_word_count,
-                success=True,
-                within_target=within_target
+                revised_word_count=len(cleaned_content.split()),
+                success=True
             )
             
         except Exception as e:
@@ -786,10 +702,8 @@ class ChapterReviser:
                 revised_content=chapter.content,
                 original_word_count=chapter.word_count,
                 revised_word_count=chapter.word_count,
-                target_word_count=plan.target_word_count,
                 success=False,
-                error_message=str(e),
-                within_target=False
+                error_message=str(e)
             )
     
     def _get_condensed_context(self, context_chapters: Dict[int, Chapter]) -> str:
@@ -845,90 +759,17 @@ REVISION PLAN TO IMPLEMENT:
 ORIGINAL CHAPTER {chapter.number} ({chapter.word_count} words):
 {chapter.content}
 
-CRITICAL WORD COUNT REQUIREMENTS:
-- ABSOLUTE TARGET: {plan.target_word_count} words (NO MORE, NO LESS)
-- MAXIMUM TOLERANCE: ±50 words
-- STRATEGY: {plan.word_count_strategy.upper()}
-- Current content is {chapter.word_count} words
-- YOU MUST NOT EXCEED {plan.target_word_count + 50} WORDS
-
-REVISION REQUIREMENTS:
+CRITICAL REQUIREMENTS:
 1. You MUST implement EVERY task listed in the revision plan
-2. You MUST achieve EXACTLY {plan.target_word_count} words (±50 words MAXIMUM)
+2. You MUST maintain approximately the current length of {chapter.word_count} words, adding only minor expansions (no more than 5%) if necessary for literary quality.
 3. You MUST maintain consistency with the context chapters provided
-4. You MUST maintain the original story and characters
-5. You MUST make substantial improvements to the text
-6. DO NOT simply return the original text
-7. WORD COUNT IS MANDATORY - COUNT YOUR WORDS BEFORE RESPONDING
-
-CRITICAL: If the strategy is "maintain", you MUST NOT significantly expand the text. Focus on quality improvements within the current length.
+4. You MUST maintain the original story and characters while adding new content
+5. You MUST NOT simply return the original text - make substantial additions
 
 SPECIFIC TASKS TO COMPLETE:
 {specific_tasks}
 
-IMPORTANT: Return ONLY the complete revised chapter text. Do not include any commentary, notes, or explanations. The revised chapter must be approximately {plan.target_word_count} words."""
-    
-    def _force_compression(self, chapter: Chapter, text: str, target_words: int) -> str:
-        """Force compression when text is unexpectedly long."""
-        current_count = chapter._count_words(text)
-        if current_count <= target_words + 50:  # Already close enough
-            return text
-            
-        prompt = f"""This text is {current_count} words but must be compressed to approximately {target_words} words.
-
-Remove unnecessary words, phrases, and sentences while preserving all essential meaning and literary quality.
-
-TARGET: {target_words} words (±25 words)
-
-TEXT TO COMPRESS:
-{text}
-
-Return ONLY the compressed text with approximately {target_words} words. No commentary."""
-        
-        try:
-            compressed = self.api_client.complete(
-                prompt,
-                model_complexity='simple',
-                max_tokens=4000
-            )
-            return self._clean_ai_commentary(compressed)
-        except Exception as e:
-            logger.error(f"Force compression failed: {e}")
-            return text
-    
-    def _correct_word_count(self, chapter: Chapter, plan: RevisionPlan, 
-                           revised_content: str, current_count: int) -> str:
-        """Attempt to correct word count if far from target."""
-        target = plan.target_word_count
-        difference = current_count - target
-        
-        if abs(difference) < 100:  # Close enough
-            return revised_content
-        
-        if difference > 0:  # Too long, need to compress
-            instruction = f"The text is {difference} words too long. Compress it to exactly {target} words by removing unnecessary words, phrases, and sentences while preserving all essential meaning and literary quality."
-        else:  # Too short, need to expand
-            instruction = f"The text is {abs(difference)} words too short. Expand it to exactly {target} words by adding meaningful details, descriptions, dialogue, or internal thoughts that enhance the literary quality."
-        
-        prompt = f"""{instruction}
-
-TARGET WORD COUNT: {target} words
-
-TEXT TO REVISE ({current_count} words):
-{revised_content}
-
-Return ONLY the corrected text with approximately {target} words. No commentary."""
-        
-        try:
-            corrected = self.api_client.complete(
-                prompt,
-                model_complexity='medium',
-                max_tokens=self.config.max_tokens['revision']
-            )
-            return self._clean_ai_commentary(corrected)
-        except Exception as e:
-            logger.error(f"Word count correction failed: {e}")
-            return revised_content
+IMPORTANT: Return ONLY the complete revised chapter text. Do not include any commentary, notes, or explanations. Do NOT significantly lengthen the chapter. The goal is refinement and improvement, not length expansion."""
     
     def _clean_ai_commentary(self, text: str) -> str:
         """Remove AI commentary from text."""
@@ -974,16 +815,16 @@ Return ONLY the corrected text with approximately {target} words. No commentary.
                        context_content: str) -> str:
         """Retry revision with more explicit instructions."""
         # Use a shorter, more focused prompt for retry
-        prompt = f"""CRITICAL: You must revise and modify this chapter. Do NOT return the original text unchanged.
+        prompt = f"""CRITICAL: You must revise and EXPAND this chapter. Do NOT return the original text unchanged.
 
 ORIGINAL CHAPTER (DO NOT RETURN THIS UNCHANGED):
 {chapter.content}
 
 The revised chapter MUST be approximately {plan.target_word_count} words (currently {chapter.word_count}).
 
-Based on the revision plan, you must implement substantial changes while maintaining the story.
+Based on the revision plan, you must add substantial new content while maintaining the story.
 
-Return ONLY the complete revised chapter with approximately {plan.target_word_count} words."""
+Return ONLY the complete revised chapter with all additions integrated smoothly into the narrative."""
         
         try:
             revised = self.api_client.complete(
@@ -1015,21 +856,15 @@ class ReportGenerator:
         total_original = sum(r.original_word_count for r in results)
         total_revised = sum(r.revised_word_count for r in results)
         
-        # Count successful target hits
-        within_target_count = sum(1 for r in results if r.within_target and r.success)
-        
         # Build chapter details
         chapter_details = []
         for result in sorted(results, key=lambda r: r.chapter_number):
             if result.success:
                 expansion = result.revised_word_count / result.original_word_count
-                target_diff = result.revised_word_count - result.target_word_count
-                target_status = "✓ ON TARGET" if result.within_target else f"✗ OFF by {target_diff:+d}"
-                
                 detail = (
                     f"- Chapter {result.chapter_number}: "
                     f"{result.original_word_count:,} → {result.revised_word_count:,} words "
-                    f"(target: {result.target_word_count:,}) {target_status}"
+                    f"({expansion:.1f}x expansion)"
                 )
                 if result.draft_path:
                     detail += f"\n  - Original saved to: {result.draft_path.relative_to(project_dir)}"
@@ -1053,8 +888,7 @@ Revised {len(results)} chapters out of {len(all_chapters)} total chapters in the
 **Word Count Changes:**
 - Total Original: {total_original:,} words
 - Total Revised: {total_revised:,} words
-- Overall Change: {total_revised - total_original:+,} words ({total_revised/total_original:.1f}x)
-- Target Accuracy: {within_target_count}/{len(results)} chapters hit target
+- Overall Expansion: {total_revised/total_original:.1f}x
 
 **Chapter Details:**
 {chr(10).join(chapter_details)}
@@ -1071,14 +905,14 @@ Each target chapter was analyzed in the context of the full novel, considering:
 ### 2. Revision Planning
 Detailed revision plans were created for each chapter, focusing on:
 - Priority improvements identified in analysis
-- Word count strategy (maintain/expand/compress)
+- Expansion strategies for meaningful growth
 - Literary enhancements and consistency fixes
 - Specific, actionable revision tasks
 
 ### 3. Chapter Revision
 Each chapter was revised according to its plan, with emphasis on:
 - Implementing all planned improvements
-- Achieving target word count within tolerance
+- Expanding content meaningfully (target 40% growth)
 - Maintaining novel-wide consistency
 - Enhancing literary quality
 
@@ -1105,7 +939,7 @@ See the project directory for:
 
 ## Notes
 
-The revision process maintained strict word count targets while focusing on literary quality improvements. 
+The revision process maintained the context of the full novel while focusing on the selected chapters. 
 Each revised chapter should now better serve its role in the overall narrative while demonstrating 
 enhanced literary quality. Original versions are preserved in the drafts folder for reference.
 """
@@ -1137,8 +971,7 @@ class ChapterRevisionController:
     def run(self, project_dir: str, target_chapters: List[int],
             context_map: Optional[Dict[int, List[int]]] = None,
             analysis_only: bool = False,
-            use_existing_analysis: bool = False,
-            target_words: Optional[int] = None) -> None:  # NEW: target_words parameter
+            use_existing_analysis: bool = False) -> None:
         """Run the chapter revision process."""
         project_path = Path(project_dir)
         
@@ -1153,8 +986,6 @@ class ChapterRevisionController:
             raise ValidationError(f"No valid chapters found from: {target_chapters}")
         
         logger.info(f"Processing chapters: {sorted(valid_targets.keys())}")
-        if target_words:
-            logger.info(f"Target word count: {target_words} words per chapter")
         
         # Set up context map
         if context_map is None:
@@ -1201,14 +1032,12 @@ class ChapterRevisionController:
                     chapter_number=chapter_num,
                     analysis=analyses[chapter_num],
                     plan_content=plan_content,
-                    target_word_count=target_words or chapter.word_count,
-                    original_word_count=chapter.word_count,
-                    word_count_strategy="maintain" if not target_words else ("expand" if target_words > chapter.word_count else "compress")
+                    target_word_count=int(chapter.word_count * self.config.expansion_factor)
                 )
             else:
                 logger.info(f"Creating plan for chapter {chapter_num}")
                 plan = self.planner.create_plan(
-                    chapter, analyses[chapter_num], project_context, target_words
+                    chapter, analyses[chapter_num], project_context
                 )
                 plans[chapter_num] = plan
                 
@@ -1223,7 +1052,7 @@ class ChapterRevisionController:
         drafts_dir.mkdir(parents=True, exist_ok=True)
         
         for chapter_num, chapter in valid_targets.items():
-            logger.info(f"Revising chapter {chapter_num} (target: {plans[chapter_num].target_word_count} words)")
+            logger.info(f"Revising chapter {chapter_num}")
             
             # Step 3a: Save original as draft BEFORE revision
             draft_number = self.file_handler.get_next_draft_number(
@@ -1257,11 +1086,10 @@ class ChapterRevisionController:
             if result.success:
                 try:
                     self.file_handler.write_file(chapter.file_path, result.revised_content)
-                    target_status = "✓ ON TARGET" if result.within_target else f"✗ OFF TARGET"
                     logger.info(
-                        f"Chapter {chapter_num} revised and saved: "
+                        f"Chapter {chapter_num} revised and saved to original location: "
                         f"{result.original_word_count} → {result.revised_word_count} words "
-                        f"(target: {result.target_word_count}) {target_status}"
+                        f"({result.revised_word_count/result.original_word_count:.1f}x)"
                     )
                 except Exception as e:
                     logger.error(f"Failed to save revised chapter {chapter_num}: {e}")
@@ -1308,9 +1136,7 @@ class ChapterRevisionController:
         content = f"""# REVISION PLAN FOR CHAPTER {plan.chapter_number}
 
 **Generated:** {plan.created_at.strftime('%Y-%m-%d %H:%M:%S')}
-**Original word count:** {plan.original_word_count} words
 **Target word count:** {plan.target_word_count} words
-**Strategy:** {plan.word_count_strategy.upper()}
 
 ---
 
@@ -1374,23 +1200,26 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Revise single chapter maintaining current length
+  # Revise single chapter
   %(prog)s mynovel --chapters 5
   
-  # Revise multiple chapters to specific word count
-  %(prog)s mynovel --chapters 3,5,7,9 --target-words 3000
+  # Revise multiple chapters
+  %(prog)s mynovel --chapters 3,5,7,9
   
-  # Revise chapter range with target word count
-  %(prog)s mynovel --chapters 10-15 --target-words 2500
+  # Revise chapter range
+  %(prog)s mynovel --chapters 10-15
   
   # Use specific context chapters
-  %(prog)s mynovel --chapters 10 --context-chapters "10:0,5" --target-words 3200
+  %(prog)s mynovel --chapters 10 --context-chapters "10:0,5"
+  
+  # Use context map file
+  %(prog)s mynovel --chapters 10,15 --context-map context.json
   
   # Analysis only
   %(prog)s mynovel --chapters 5 --analysis-only
   
   # Use existing analyses
-  %(prog)s mynovel --chapters 5 --use-existing-analysis --target-words 3000
+  %(prog)s mynovel --chapters 5 --use-existing-analysis
 """
     )
     
@@ -1402,11 +1231,6 @@ Examples:
         '--chapters',
         required=True,
         help='Chapters to revise (e.g., "5" or "3,5,7" or "10-15")'
-    )
-    parser.add_argument(
-        '--target-words',  # NEW: Fixed argument name
-        type=int,
-        help='Target word count for each chapter (default: maintain current length)'
     )
     parser.add_argument(
         '--context-chapters',
@@ -1448,15 +1272,6 @@ Examples:
         target_chapters = parse_chapter_spec(args.chapters)
         logger.info(f"Target chapters: {target_chapters}")
         
-        # Validate target words
-        if args.target_words and args.target_words <= 0:
-            raise ValidationError("Target words must be positive")
-        
-        if args.target_words:
-            logger.info(f"Target word count: {args.target_words} words per chapter")
-        else:
-            logger.info("Target: maintain current word count")
-        
         # Parse context map
         context_map = None
         if args.context_map:
@@ -1486,8 +1301,7 @@ Examples:
             target_chapters,
             context_map=context_map,
             analysis_only=args.analysis_only,
-            use_existing_analysis=args.use_existing_analysis,
-            target_words=args.target_words  # NEW: Pass target_words
+            use_existing_analysis=args.use_existing_analysis
         )
         
     except ChapterReviserError as e:

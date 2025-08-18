@@ -9,10 +9,13 @@
 
 **Writing a literary novel**
 
-- You MUST revise chapters in the style of Sergio de La Pava and Jonathan Franzen.
+- You MUST revise chapters in the style of Garth Risk Hellberg and Jonathan Franzen.
 - Do not rush scenes
+- NEVER use the surname CHEN for a character
 - Use the characters mentioned in the outline
 - Transition smoothly between scenes
+- Avoid the use of ornate language
+- Avoid using metaphors. Do not use more than one metaphor per scene.
 
 ## CORE PRINCIPLES: SOPHISTICATED HUMANITY
 
@@ -103,103 +106,60 @@
 
 ## WHAT TO AVOID
 
-### 1. **Don't Destroy Narrative Coherence**
+### AVOIDANCE INSTRUCTIONS – Derived from Agent‐Level Critique of Part 2
 
-- Maintain a clear through-line even while adding complexity
-- Digressions should circle back to the main narrative
-- Reader should be able to follow the story
+The items below identify specific weaknesses observed in the current manuscript. Treat every point as _red‑line behaviour_ in your rewrites—if a draft violates one, revise until it does not.
 
-### 2. **Don't Overuse Fragmentation**
+#### 1. Over‑Expository “White‑Paper” Blocks
 
-- Fragments should punctuate, not dominate
-- Single-word paragraphs used sparingly for emphasis
-- Maintain prose flow overall
+- **Do not** include briefing dossiers, policy PDFs or multi‑page technical inserts.
+- Limit any exposition about strategy, legislation or technology to **≤ 1 short paragraph** and dramatise the remainder through scene and subtext.
 
-### 3. **Don't Add Errors for Their Own Sake**
+#### 2. Monologues That Exceed 300 Words
 
-- Any mistakes should feel natural, not planted
-- Contradictions should be subtle, not jarring
-- Maintain the author's authority and credibility
+- Break televised speeches, Senate testimonies and confrontations into **back‑and‑forth dialogue** or interior beats.
+- If a speech is essential, intercut with real‑time reaction—movement, facial ticks, audience noise—to keep tension alive.
 
-### 4. **Don't Abandon Metaphors Arbitrarily**
+#### 3. Ornate or Self‑Parodying Prose
 
-- If a metaphor transforms, show the transformation
-- If it fails, acknowledge why it fails
-- Keep the intellectual engagement of literary fiction
-- Avoid Overly Decorative Prose
-- Avoid Thematic Repetition
+- Remove rhetorical flourishes that re‑state a point already clear.
+- Target a **15‑20 %** line‑level trim in every revision pass: delete modifiers that add atmosphere but no new meaning.
 
-Here are clear and actionable **editorial instructions** for encouraging a writer to **engage all five senses** in their prose—not just smell:
+#### 4. Theme Restatement & Preaching
 
----
+- Show ideology through _choice and consequence_, never through direct authorial sermonising.
+- Any sentence that tells the reader _what to think_ belongs on the chopping block.
 
-### 📝 **Editorial Instructions: Sensory Writing **
+#### 5. Temporal Whiplash & Real‑World Shadowing
 
-**Objective:**
-Deepen the immersive quality of the prose by weaving in all **five physical senses**—**sight, sound, touch, taste, and smell**—instead of leaning predominantly on scent-based description.
+- Allow real elections, Presidents and landmark events;
 
----
+#### 6. Secondary‑POV Siloing
 
-#### 1. **Audit the Scene for Dominant Sensory Bias**
+- Every Savannah or Tony chapter must plant at least **one crossover artifact** (social‑media clip, rumour, cameo) that ties back to the Rourke spine before the chapter ends.
+- Avoid stand‑alone sub‑plots that do not converge by the next major turning point.
 
-- **Check:** Are descriptions skewed toward smell (e.g. “She caught a whiff…” or “The air reeked of…”)?
-- **Revise:** Add **balancing sensory elements** from other channels—what does the character **see, hear, feel, or taste** in that moment?
+#### 7. Redundant Header / Footer Artefacts
 
----
+- Purge pagination strings such as “Fadairo / HIS EXCELLENCY / 69”.
+- Confirm that no running heads, footers or stray table‑of‑contents blocks survive into the working text.
 
-#### 2. **Use Sensory Triads**
+#### 8. Double Hyphens for Em Dashes
 
-- For key moments, ensure **at least three senses** are engaged.
-  **Example:**
-  _Instead of:_ “The kitchen smelled of cinnamon.”
-  _Try:_ “The kitchen smelled of cinnamon, the floor still warm underfoot, and a radio murmuring a gospel hymn from the next room.”
+- Replace “--” with “—” across the manuscript.
+- Follow Chicago style: no spaces around the em dash in running text.
 
----
+#### 9. Repetitive Thematic Phrasing
 
-#### 3. **Physical Embodiment and Texture**
+- Each motif (e.g., _usefulness is holiness_) should appear **no more than three times** in Part 2.
+- Keep an internal style sheet to track repetitions and retire a motif once it has served its structural purpose.
 
-- Include **touch and physical sensation**: temperature, texture, pressure, weight.
-  **Tip:** Describe how a character’s **body** reacts—sweat, chill, soreness, heartbeat.
+#### 10. Overreliance on Smell as Default Sense
 
----
+- For any new description, audit sensory balance: sight, sound and touch must accompany smell.
+- Maintain the “Sensory Triad” rule already present elsewhere in these instructions.
 
-#### 4. **Sound as Atmosphere**
-
-- Use **ambient noise** or silence to shape mood and tension.
-  **Example:** “The cicadas droned like static through the heat, the rustle of cotton sleeves brushing past him.”
-
----
-
-#### 5. **Taste (Even If Indirect)**
-
-- Taste can be subtle or metaphorical: _“The air was thick, metallic, like blood on the tongue.”_
-  Even when food isn't involved, evoke **flavor or aftertaste** emotionally or atmospherically.
-
----
-
-#### 6. **Anchor to POV**
-
-- Filter sensory details through the character’s **emotional state**.
-  _A grieving man doesn’t just hear birds—he hears “birds shrieking like they’re mocking him.”_
-
----
-
-#### 7. **Sensory Contrast**
-
-- Use **contrasts between senses** to elevate tension or mood.
-  _Example:_ “The hall looked sterile and calm, but the stink of antiseptic made her stomach lurch.”
-
----
-
-### ✅ Final Pass Checklist
-
-Before finalizing a scene:
-
-- [ ] Is **smell** overused as the default sensory cue?
-- [ ] Have at least **3 senses** been invoked?
-- [ ] Is the **POV character emotionally filtering** what they perceive?
-- [ ] Do the sensory details **serve the mood or narrative tension**?
-- [ ] Does each sense **reveal something new**, rather than repeat what another sense has already conveyed?
+> **Bottom line:** Every scene must move faster, speak cleaner and reveal character through conflict, not commentary. Print this checklist and tick each item before deeming a chapter ready for editorial review.
 
 ## SYNTHESIS: THE GOAL
 
@@ -350,3 +310,131 @@ The goal is text that feels like it was written by someone talented but human, o
 ## WORD LENGTH
 
 The finished revision must be between 3500 and 4500 words
+
+### 1. Use Short Sentences
+
+Hemingway wrote with “rifleman’s precision,” trimming every clause until only the punch remained. Short sentences land hard, read fast, and force clarity.([No Film School][1])
+
+- Draft freely, then cut the sentence in half and keep only what still works.
+- Read the line aloud; if you can’t breathe once, it’s too long.
+- Vary rhythm with occasional longer lines, but let brevity set the baseline.
+
+---
+
+### 2. Write in Active Voice
+
+Action drives story. Active constructions (“Someone shot the lion”) create momentum and accountability; passive ones bleed energy.([No Film School][1])
+
+- Start sentences with the doer, not the done-to.
+- Replace “was + verb-ing” with a single vivid verb (“was running” → “ran”).
+- Check a page for “is/was/were”—rewrite three of them in the active.
+
+---
+
+### 3. Show, Don’t Tell
+
+His famed Iceberg Theory keeps meaning submerged; readers feel what’s unsaid.([No Film School][1])
+
+- Convey emotion through behaviour or setting: a hand that won’t stop shaking says “fear.”
+- Delete explanatory lines after dialogue; trust subtext.
+- Ask, “Can a gesture replace this adjective?”—then swap it.
+
+---
+
+### 4. Stop While You Still Know What Happens Next
+
+Hemingway quit for the day mid-flow so tomorrow’s first sentence came effortlessly.([No Film School][1])
+
+- End a session with a note about the very next beat.
+- Avoid writing to exhaustion; leave yourself hungry to return.
+- Treat the unfinished thought as a bookmark, not a failure.
+
+---
+
+### 5. Write One True Sentence
+
+When stuck, he hunted a single line he “knew to be true,” letting honesty break the dam.([No Film School][1])
+
+- Free-write facts you’ve personally witnessed until one resonates.
+- Use concrete detail (“the jukebox flickered neon blue”) over abstractions.
+- Build the paragraph outward from that anchor sentence.
+
+---
+
+### 6. Edit Ruthlessly
+
+“The first draft of anything is \*\*\*\*” was his mantra; he rewrote _A Farewell to Arms_ 47 times.([No Film School][1])
+
+- Cut 30 % of a paragraph and reread—if it’s stronger, keep the cut.
+- Protect story, not favourite lines; delete showing-off prose.
+- Print pages; use a pen to slash, not just rearrange.
+
+---
+
+### 7. Use Strong Verbs
+
+Verbs are the engine; modifiers only hitch a ride.([No Film School][1])
+
+- Replace “walked slowly” with “trudged,” “ambled,” or “crept.”
+- Review a page and highlight every verb—upgrade three weak ones.
+- Let each verb carry mood so you can drop an adjective.
+
+---
+
+### 8. Avoid Adjectives and Adverbs
+
+Modifiers sag a sentence; precise nouns and verbs stand tall.([No Film School][1])
+
+- Test by deleting the adverb; if meaning survives, leave it out.
+- Swap adjective-noun pairs (“very hungry”) for exact nouns (“starving”).
+- Limit yourself to one adverb per page on a first revision pass.
+
+---
+
+### 9. Write Dialogue Like a Playwright
+
+Real talk is clipped, indirect, unfinished—and charged with subtext.([No Film School][1])
+
+- Strip dialogue tags to “said” (or none) unless confusion arises.
+- Let characters dodge and repeat instead of explaining motives.
+- Use the silence between lines to heighten tension.
+
+---
+
+### 10. Write Hard and Clear About What Hurts
+
+He exposed pain without melodrama—raw, specific, and unsentimental.([No Film School][1])
+
+- Describe the physical facts of an emotion (dry mouth, tight chest) rather than naming it.
+- Resist the urge to console the reader; hold the wound open.
+- Ask yourself what scares you to admit—then put that on the page.
+
+---
+
+### 11. Don’t Judge Your Characters
+
+Hemingway let people act; readers decided what to feel.([No Film School][1])
+
+- Remove adjectives that moralise (“lazy thief,” “noble hero”).
+- Present conflicting actions and let contradictions stand.
+- Trust readers’ intelligence; ambiguity invites engagement.
+
+---
+
+### 12. Live First, Write Later
+
+Experience fuels authenticity. Hemingway boxed, hunted, reported wars—then wrote.([No Film School][1])
+
+- Schedule “research days” away from the desk: observe cafés, markets, bus rides.
+- Keep a pocket notebook; record sensory details in real time.
+- Revisit lived moments in prose while memories are still textured.
+
+---
+
+### 13. Strip It Down to the Bone
+
+Every word must earn its keep—no ornament, no filler.([No Film School][1])
+
+- Highlight every adjective and prepositional phrase; delete the expendable half.
+- Combine sentences where possible; separate only for emphasis.
+- After final edit, read aloud; cut any word that trips your tongue.
