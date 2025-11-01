@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class ClaudeClient:
     """Client for interacting with Claude AI API with streaming support."""
     
-    def __init__(self, api_key: Optional[str] = None, story_bible_path: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None):
         """Initialize Claude client with async support."""
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
         if not self.api_key:
@@ -28,61 +28,20 @@ class ClaudeClient:
         self.model = "claude-opus-4-20250514"  # Default model
         self.max_tokens = 32000  # Maximum supported by Claude Opus 4
         self.use_streaming = True  # Enable streaming by default for long operations
-        
-        # Load story bible if path provided, otherwise look for default
-        self.story_bible = None
-        bible_path = story_bible_path or os.path.join(os.path.dirname(__file__), "story_bible.md")
-        self.load_story_bible(bible_path)
-    
-    def load_story_bible(self, file_path: str) -> None:
-        """Load story bible from markdown file."""
-        try:
-            if os.path.exists(file_path):
-                with open(file_path, "r", encoding="utf-8") as f:
-                    self.story_bible = f.read()
-                logger.info(f"Story bible loaded from {file_path}")
-            else:
-                logger.warning(f"Story bible file not found at {file_path}")
-                self.story_bible = None
-        except Exception as e:
-            logger.error(f"Failed to load story bible: {e}")
-            self.story_bible = None
-    
-    def _build_system_prompt(self, base_prompt: str) -> List[Dict[str, Any]]:
-        """Build system prompt with cached story bible."""
-        if self.story_bible:
-            # Story bible with cache control, then the specific prompt
-            return [
-                {
-                    "type": "text",
-                    "text": f"# STORY BIBLE\n\n{self.story_bible}",
-                    "cache_control": {"type": "ephemeral"}
-                },
-                {
-                    "type": "text",
-                    "text": base_prompt
-                }
-            ]
-        else:
-            # No story bible, just return the base prompt
-            return [{"type": "text", "text": base_prompt}]
     
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def _make_request(self, messages: List[Dict[str, str]], system: str = "") -> str:
         """Make a request to Claude API with retry logic and streaming support."""
         try:
-            # Build system prompt with cached story bible
-            system_prompt = self._build_system_prompt(system)
-            
             # For operations that might take long (like chapter generation), use streaming
             if self.use_streaming and self.max_tokens > 10000:
-                return await self._make_streaming_request(messages, system_prompt)
+                return await self._make_streaming_request(messages, system)
             else:
                 # For shorter operations, use regular request
                 response = await self.client.messages.create(
                     model=self.model,
                     max_tokens=self.max_tokens,
-                    system=system_prompt,
+                    system=system,
                     messages=messages,
                     timeout=600.0  # 10 minute timeout
                 )
@@ -91,7 +50,7 @@ class ClaudeClient:
             logger.error(f"API request failed: {e}")
             raise
     
-    async def _make_streaming_request(self, messages: List[Dict[str, str]], system_prompt: List[Dict[str, Any]]) -> str:
+    async def _make_streaming_request(self, messages: List[Dict[str, str]], system: str = "") -> str:
         """Make a streaming request to Claude API for long operations."""
         try:
             full_response = []
@@ -100,7 +59,7 @@ class ClaudeClient:
             async with self.client.messages.stream(
                 model=self.model,
                 max_tokens=self.max_tokens,
-                system=system_prompt,
+                system=system,
                 messages=messages,
             ) as stream:
                 async for text in stream.text_stream:
@@ -158,14 +117,13 @@ STYLE NOTES:
 CONTEXT:
 {context}
 
-Write {normalized_title} following the outline and maintaining consistency with previous chapters and the story bible. 
+Write {normalized_title} following the outline and maintaining consistency with previous chapters. 
 Focus on:
 - Character development and authentic dialogue
 - Advancing the plot according to the outline
 - Maintaining the established tone and style
 - Creating engaging scenes with proper pacing
 - Reaching approximately {word_count_target} words
-- Staying consistent with all details in the story bible
 
 IMPORTANT: Use the exact chapter title format "{normalized_title}" at the beginning of your response.
 Write the chapter content directly without any meta-commentary."""
@@ -208,7 +166,7 @@ Create a detailed character profile including:
 - Character voice/speaking style
 - Relationships with other characters
 
-Make the character feel real, complex, and three-dimensional. Ensure consistency with the story bible."""
+Make the character feel real, complex, and three-dimensional."""
         
         messages = [
             {
@@ -251,7 +209,7 @@ Create a detailed chapter outline that includes:
 - Chapter ending/transition to next chapter
 - Pacing notes
 
-Structure the outline with clear beats that can guide the actual writing. Ensure consistency with the story bible."""
+Structure the outline with clear beats that can guide the actual writing."""
         
         messages = [
             {
@@ -319,7 +277,6 @@ Review the manuscript and identify any consistency issues such as:
 - Timeline or continuity errors
 - Plot contradictions
 - Setting inconsistencies
-- Inconsistencies with the story bible
 
 Provide specific examples and suggestions for fixes."""
         
@@ -358,7 +315,6 @@ Analyze the text and provide specific, actionable suggestions for improvement in
 - Descriptive language
 - Plot advancement
 - Clarity and readability
-- Consistency with story bible
 
 Be specific and provide examples where possible."""
         
@@ -409,7 +365,7 @@ Your task is to expand this chapter by adding approximately {target_words} words
 - Adding depth to character development or plot advancement
 - Incorporating the expansion notes if provided
 - Ensuring smooth integration with existing content
-- Maintaining consistency with the established tone and story bible
+- Maintaining consistency with the established tone
 
 Provide ONLY the expanded content that should be added, not the entire chapter."""
         
@@ -461,7 +417,7 @@ CONTEXT:
 CHAPTER TO ANALYZE:
 {content[:3000]}...
 
-Provide a detailed analysis focusing on the specified areas. Check for consistency with the story bible. Structure your response as JSON with the following format:
+Provide a detailed analysis focusing on the specified areas. Structure your response as JSON with the following format:
 {{
     "overall_assessment": "Brief overall assessment",
     "strengths": ["strength1", "strength2", ...],
@@ -541,7 +497,6 @@ Create a detailed outline for Chapters {chapter_start} through {chapter_end} tha
 - Advances character development
 - Maintains narrative momentum
 - Provides clear story beats for each chapter
-- Stays consistent with the story bible
 
 Format as:
 ## Chapter X: [Title]
@@ -595,7 +550,6 @@ Check for continuity issues including:
 - Plot inconsistencies
 - Setting and world-building contradictions
 - Dialogue voice consistency
-- Consistency with the story bible
 
 Provide results as JSON:
 {{
@@ -671,7 +625,6 @@ Suggest {num_suggestions} compelling ideas for Chapter {next_chapter_number} and
 - Introduce appropriate conflict or tension
 - Move the plot toward resolution
 - Maintain reader engagement
-- Stay consistent with the story bible
 
 Format as JSON:
 {{
@@ -730,7 +683,6 @@ Analyze the outline and identify chapters that should exist but are missing. Con
 - Character development needs
 - Plot point coverage
 - Narrative flow requirements
-- Story bible requirements
 
 Format as JSON:
 {{

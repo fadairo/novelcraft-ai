@@ -700,6 +700,21 @@ def find_revision_instructions(project_file, revision_instructions=None, no_revi
     
     return None
 
+# Update the AI command helper functions to find and use story bible
+def get_claude_client(project_path):
+    """Initialize Claude client with story bible from project directory."""
+    from ..ai.claude_client import ClaudeClient
+    from pathlib import Path
+    
+    # Look for story_bible.md in project directory
+    story_bible_path = Path(project_path).parent / "story_bible.md"
+    
+    if story_bible_path.exists():
+        click.echo(f"📚 Loading story bible from: {story_bible_path.name}")
+        return ClaudeClient(story_bible_path=str(story_bible_path))
+    else:
+        click.echo("💡 No story_bible.md found in project directory")
+        return ClaudeClient()
 
 # AI Generation Commands
 @ai.command()
@@ -747,7 +762,8 @@ def generate_chapter(ctx, project_file, number, title, outline_section, word_cou
             click.echo("💡 No revision_instructions.md found. Using default generation style.")
         
         # Initialize AI components with revision instructions
-        claude_client = ClaudeClient()
+        claude_client = get_claude_client(project_file)
+        #claude_client = ClaudeClient()
         generator = ContentGenerator(claude_client, revision_path)
         
         click.echo(f"🤖 Generating Chapter {number}...")
@@ -818,7 +834,8 @@ def expand_chapter(ctx, project_file, chapter, notes, target_words,
         revision_path = find_revision_instructions(project_file, revision_instructions, no_revision_instructions)
         
         # Initialize AI components
-        claude_client = ClaudeClient()
+        claude_client = get_claude_client(project_file)
+        #claude_client = ClaudeClient()
         generator = ContentGenerator(claude_client, revision_path)
         
         click.echo(f"🤖 Expanding {chapter_obj.title}...")
@@ -890,7 +907,8 @@ def analyze_chapter(ctx, project_file, chapter, focus):
         focus_areas = list(focus) if focus else ["pacing", "dialogue", "character_development", "continuity"]
         
         # Initialize AI components
-        claude_client = ClaudeClient()
+        claude_client = get_claude_client(project_file)
+        #claude_client = ClaudeClient()
         generator = ContentGenerator(claude_client)
         
         click.echo(f"🤖 Analyzing {chapter_obj.title}...")
@@ -975,7 +993,8 @@ def check_continuity(ctx, project_file, chapters):
                 sys.exit(1)
         
         # Initialize AI components
-        claude_client = ClaudeClient()
+        claude_client = get_claude_client(project_file)
+        # claude_client = ClaudeClient()
         generator = ContentGenerator(claude_client)
         
         if chapter_range:
@@ -1059,7 +1078,8 @@ def suggest_next(ctx, project_file, num_suggestions, revision_instructions, no_r
         revision_path = find_revision_instructions(project_file, revision_instructions, no_revision_instructions)
         
         # Initialize AI components
-        claude_client = ClaudeClient()
+        claude_client = get_claude_client(project_file)
+        #claude_client = ClaudeClient()
         generator = ContentGenerator(claude_client, revision_path)
         
         click.echo(f"🤖 Generating {num_suggestions} chapter suggestions...")

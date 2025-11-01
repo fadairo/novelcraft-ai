@@ -1,66 +1,18 @@
 #!/usr/bin/env python3
 """
-single_chapter_reviser.py - Focused Single Chapter Revision Tool (Enhanced)
+single_chapter_reviser_guided.py - Single Chapter Revision Tool with Revision Guides
 
-This script provides targeted revision for individual chapters:
-1. Analyzes a single chapter for issues
-2. Creates a detailed revision plan
-3. Implements revisions task-by-task with verification
-4. Uses inspiration.md for literary guidance
+This script provides targeted revision for individual chapters with optional revision guides:
+1. Loads optional revision guide from revision_guides folder
+2. Analyzes a single chapter for issues (if no guide provided)
+3. Uses revision guide OR creates a revision plan
+4. Implements revisions following the guide/plan
+5. Uses inspiration.md for literary guidance
 
 Windows-compatible with proper encoding handling.
 Optimized for Claude Sonnet 4 with 64k token output.
-Enhanced with staged revision and task verification.
+Enhanced with revision guide support.
 """
-
-
-
-# === Claude + Metric-Driven Revision Logic ===
-import anthropic
-from text_metrics import compute_burstiness, compute_perplexity_proxy
-
-client = anthropic.Anthropic(api_key="your-anthropic-api-key")
-
-def analyze_metrics(text):
-    burstiness = compute_burstiness(text)
-    perplexity = compute_perplexity_proxy(text)
-    return burstiness, perplexity
-
-def build_prompt_claude(text, burstiness, perplexity):
-    notes = []
-    if burstiness < 0.45:
-        notes.append("Vary sentence lengths. Break long passages with short, abrupt lines.")
-    if perplexity < 0.6:
-        notes.append("Increase unpredictability. Add metaphor, hesitation, and indirectness.")
-
-    guidance = " ".join(notes) if notes else "Preserve tone but improve rhythm and realism."
-
-    return f"""
-Human: Revise the following chapter to sound more human-written. {guidance}
-
-### ORIGINAL TEXT:
-{text}
-
-Assistant:
-"""
-
-def revise_with_claude(text, model="claude-opus-4-20250514", max_tokens=2048):
-    burstiness, perplexity = analyze_metrics(text)
-    prompt = build_prompt_claude(text, burstiness, perplexity)
-
-    response = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        temperature=0.7,
-        messages=[
-            {{"role": "user", "content": prompt.strip()}}
-        ]
-    )
-
-    revised_text = response.content[0].text if hasattr(response.content[0], "text") else str(response.content)
-    return revised_text, burstiness, perplexity
-# === END CLAUDE REVISION ===
-
 
 # === REVISION ENGINE ===
 import os
@@ -84,7 +36,7 @@ if sys.platform.startswith('win'):
         pass
 
 class SingleChapterReviser:
-    """Focused single chapter revision tool with task verification."""
+    """Focused single chapter revision tool with revision guide support."""
     
     def __init__(self, api_key: str = None):
         """Initialize with Anthropic API key."""
@@ -92,7 +44,7 @@ class SingleChapterReviser:
         self.project_dir = None
         self.chapter_num = None
         self.target_word_count = None
-        self.context_chapters = []  # Custom context chapters
+        self.context_chapters = []
         self.use_cost_effective_model = True
         
         # Project context
@@ -101,18 +53,15 @@ class SingleChapterReviser:
         self.current_chapter = {}
         self.adjacent_chapters = {}
         
+        # Revision guide support
+        self.revision_guide = None
+        self.revision_guide_path = None
+        
         # Task tracking
         self.revision_tasks = []
         self.completed_tasks = []
         self.failed_tasks = []
     
-
-    def _load_instruction_prompt(self, file_path: str = "revision_instructions.md") -> str:
-        """Load external markdown-based editorial instructions."""
-        if os.path.exists(file_path):
-            with open(file_path, "r", encoding="utf-8") as f:
-                return f.read()
-        return ""
     def _safe_read_file(self, file_path: str) -> str:
         """Safely read a file with multiple encoding attempts."""
         encodings = ['utf-8', 'utf-8-sig', 'cp1252', 'latin1', 'ascii']
@@ -148,8 +97,6 @@ class SingleChapterReviser:
     
     def _get_model_for_task(self, task_complexity: str = "medium") -> str:
         """Get appropriate model based on task complexity."""
-        
-        # With Sonnet 4, use it for all tasks - it's both powerful and cost-effective
         return "claude-sonnet-4-20250514"
     
     def _make_api_request_with_retry(self, request_func, max_retries=3):
@@ -160,25 +107,39 @@ class SingleChapterReviser:
             except Exception as e:
                 error_str = str(e).lower()
                 if "overloaded" in error_str and attempt < max_retries - 1:
-                    wait_time = (2 ** attempt) + random.uniform(1, 3)  # Exponential backoff with jitter
+                    wait_time = (2 ** attempt) + random.uniform(1, 3)
                     print(f"    API overloaded, waiting {wait_time:.1f} seconds before retry {attempt + 2}/{max_retries}...")
                     time.sleep(wait_time)
                     continue
                 else:
-                    # Re-raise the exception if it's not overloaded or we've exhausted retries
                     raise e
-        
-        # Should never reach here, but just in case
         raise Exception("Max retries exceeded")
     
+    def _load_revision_guide(self, chapter_num: int) -> Optional[str]:
+        """Load revision guide for the specified chapter from revision_guides folder."""
+        # Format: 01_chapter_01_guide.md
+        guide_filename = f"{chapter_num:02d}_chapter_{chapter_num:02d}_guide.md"
+        guide_path = os.path.join(self.project_dir, "revision_guides", guide_filename)
+        
+        if os.path.exists(guide_path):
+            print(f"Found revision guide: {guide_filename}")
+            self.revision_guide_path = guide_path
+            return self._safe_read_file(guide_path)
+        else:
+            print(f"No revision guide found at: {guide_path}")
+            return None
+    
     def load_project_context(self, project_dir: str, chapter_num: int, context_chapters: list = None):
-        """Load project context and target chapter."""
+        """Load project context, target chapter, and optional revision guide."""
         self.project_dir = project_dir
         self.chapter_num = chapter_num
         self.context_chapters = context_chapters or []
         
         print(f"Loading project context from: {project_dir}")
         print(f"Target chapter: {chapter_num}")
+        
+        # Try to load revision guide first
+        self.revision_guide = self._load_revision_guide(chapter_num)
         
         # Load project files
         self.project_context = self._load_project_files()
@@ -189,7 +150,7 @@ class SingleChapterReviser:
         if not self.current_chapter:
             raise ValueError(f"Chapter {chapter_num} not found")
         
-        # Load context chapters (either custom or adjacent)
+        # Load context chapters
         if self.context_chapters:
             self.adjacent_chapters = self._load_context_chapters(self.context_chapters)
             print(f"Custom context chapters: {self.context_chapters}")
@@ -199,6 +160,7 @@ class SingleChapterReviser:
         print(f"Loaded chapter {chapter_num}: {self.current_chapter['word_count']} words")
         print(f"Context chapters: {list(self.adjacent_chapters.keys())}")
         print(f"Literary inspirations: {'Found' if self.inspirations else 'None'}")
+        print(f"Revision guide: {'Found' if self.revision_guide else 'Will create plan'}")
     
     def _load_project_files(self) -> Dict[str, str]:
         """Load synopsis, outline, and character files."""
@@ -214,877 +176,416 @@ class SingleChapterReviser:
             for name in possible_names:
                 file_path = os.path.join(self.project_dir, name)
                 if os.path.exists(file_path):
-                    content = self._safe_read_file(file_path)
-                    files[file_type] = content
-                    print(f"  Found {file_type}: {name}")
+                    files[file_type] = self._safe_read_file(file_path)
+                    print(f"  Loaded {file_type}: {name}")
                     break
-            else:
-                files[file_type] = ""
-                print(f"  Missing {file_type}")
         
         return files
     
     def _load_inspirations(self) -> str:
-        """Load literary inspirations."""
-        inspiration_file = os.path.join(self.project_dir, "inspiration.md")
-        if os.path.exists(inspiration_file):
-            return self._safe_read_file(inspiration_file)
+        """Load inspiration.md for literary guidance."""
+        inspiration_path = os.path.join(self.project_dir, 'inspiration.md')
+        if os.path.exists(inspiration_path):
+            return self._safe_read_file(inspiration_path)
         return ""
     
-    def _load_chapter(self, chapter_num: int) -> Dict[str, Any]:
-        """Load a specific chapter."""
-        # Search in chapters directory
-        chapters_dir = os.path.join(self.project_dir, "chapters")
-        if not os.path.exists(chapters_dir):
-            return {}
-        
-        # Try various naming patterns
-        patterns = [
+    def _load_chapter(self, chapter_num: int) -> Optional[Dict[str, Any]]:
+        """Load a single chapter by number from chapters subdirectory."""
+        chapter_files = [
+            f"{chapter_num:02d}_chapter_{chapter_num:02d}.md",
             f"{chapter_num:02d}_chapter_{chapter_num}.md",
-            f"chapter_{chapter_num}.md",
-            f"chapter{chapter_num}.md",
-            f"ch_{chapter_num}.md",
-            f"Chapter {chapter_num}.md"
+            f"chapter_{chapter_num:02d}.md",
+            f"chapter{chapter_num:02d}.md",
+            f"chapter_{chapter_num}.md"
         ]
         
-        for pattern in patterns:
-            file_path = os.path.join(chapters_dir, pattern)
-            if os.path.exists(file_path):
-                content = self._safe_read_file(file_path)
-                if content:
-                    return {
-                        'file_path': file_path,
-                        'content': content,
-                        'word_count': len(content.split())
-                    }
+        # Look in chapters subdirectory only
+        chapters_dir = os.path.join(self.project_dir, 'chapters')
         
-        return {}
+        for chapter_file in chapter_files:
+            chapter_path = os.path.join(chapters_dir, chapter_file)
+            if os.path.exists(chapter_path):
+                content = self._safe_read_file(chapter_path)
+                return {
+                    'number': chapter_num,
+                    'filename': chapter_file,
+                    'content': content,
+                    'word_count': len(content.split())
+                }
+        
+        return None
     
-    def _load_context_chapters(self, context_chapter_nums: list) -> Dict[int, str]:
-        """Load specific chapters for context."""
-        context = {}
-        
-        for chapter_num in context_chapter_nums:
-            if chapter_num != self.chapter_num:  # Don't load the target chapter as context
-                chapter = self._load_chapter(chapter_num)
-                if chapter:
-                    # For consistency checking, we want more content than adjacent chapters
-                    # But still truncate very long chapters to manage token usage
-                    content = chapter['content']
-                    if len(content) > 2000:
-                        # Keep more content for consistency checking
-                        content = content[:2000] + "..."
-                    context[chapter_num] = content
-                    print(f"  Loaded context Chapter {chapter_num}: {len(content.split())} words")
-                else:
-                    print(f"  Warning: Context Chapter {chapter_num} not found")
-        
-        return context
-    
-    def _load_adjacent_chapters(self, chapter_num: int) -> Dict[int, str]:
+    def _load_adjacent_chapters(self, chapter_num: int, num_before: int = 1, num_after: int = 1) -> Dict[int, Dict[str, Any]]:
         """Load adjacent chapters for context."""
         adjacent = {}
         
-        # Load previous and next chapters
-        for adj_num in [chapter_num - 1, chapter_num + 1]:
-            if adj_num > 0:  # Don't load chapter 0 or negative
-                chapter = self._load_chapter(adj_num)
-                if chapter:
-                    # Truncate content for context (save tokens)
-                    content = chapter['content'][:800] + "..." if len(chapter['content']) > 800 else chapter['content']
-                    adjacent[adj_num] = content
+        for offset in range(-num_before, num_after + 1):
+            if offset == 0:
+                continue
+            adj_num = chapter_num + offset
+            if adj_num <= 0:
+                continue
+            
+            chapter = self._load_chapter(adj_num)
+            if chapter:
+                adjacent[adj_num] = chapter
         
         return adjacent
     
-    def analyze_chapter(self) -> str:
-        """Analyze the target chapter for revision needs."""
-        print(f"\nAnalyzing Chapter {self.chapter_num}...")
-        
-        # Check if analysis already exists
-        analysis_file = os.path.join(self.project_dir, f"chapter_{self.chapter_num}_analysis.md")
-        if os.path.exists(analysis_file):
-            print("Using existing chapter analysis")
-            return self._safe_read_file(analysis_file)
-        
-        # Build context for adjacent/context chapters
-        context_text = ""
-        if self.adjacent_chapters:
-            if self.context_chapters:
-                context_text = "\n\nCONTEXT CHAPTERS FOR CONSISTENCY:\n"
-                for chapter_num, content in self.adjacent_chapters.items():
-                    context_text += f"\nChapter {chapter_num} (for consistency reference):\n{content}\n"
+    def _load_context_chapters(self, chapter_nums: List[int]) -> Dict[int, Dict[str, Any]]:
+        """Load specific chapters for context."""
+        context = {}
+        for num in chapter_nums:
+            chapter = self._load_chapter(num)
+            if chapter:
+                context[num] = chapter
             else:
-                context_text = "\n\nADJACENT CHAPTERS CONTEXT:\n"
-                for adj_num, content in self.adjacent_chapters.items():
-                    context_text += f"\nChapter {adj_num} (excerpt):\n{content}\n"
+                print(f"Warning: Context chapter {num} not found")
+        return context
+    
+    def _save_file(self, content: str, filename: str) -> str:
+        """Save a file to the project directory."""
+        file_path = os.path.join(self.project_dir, filename)
+        self._safe_write_file(file_path, content)
+        return file_path
+    
+    def analyze_chapter(self) -> str:
+        """Analyze the chapter for issues and opportunities."""
+        print("\nStep 1: Analyzing chapter...")
+        print("-" * 50)
         
-        prompt = f"""You are a professional literary editor analyzing Chapter {self.chapter_num} for revision opportunities.
+        # If we have a revision guide, skip analysis
+        if self.revision_guide:
+            print("Using provided revision guide instead of analysis")
+            analysis = f"""# Chapter {self.chapter_num} - Using Revision Guide
 
-PROJECT CONTEXT:
-SYNOPSIS: {self.project_context.get('synopsis', 'Not available')}
+A revision guide has been provided for this chapter. Analysis step skipped.
 
-OUTLINE: {self.project_context.get('outline', 'Not available')}
+**Revision guide loaded from:** {self.revision_guide_path}
 
-CHARACTERS: {self.project_context.get('characters', 'Not available')}
+The revision will follow the recommendations in the guide.
+"""
+            self._save_file(analysis, f"chapter_{self.chapter_num}_analysis.md")
+            return analysis
+        
+        # Otherwise, perform normal analysis
+        model = self._get_model_for_task("high")
+        
+        context_summary = ""
+        if self.adjacent_chapters:
+            context_summary = "\n\n## Adjacent Chapter Context\n\n"
+            for num, chapter in sorted(self.adjacent_chapters.items()):
+                preview = chapter['content'][:300].replace('\n', ' ')
+                context_summary += f"**Chapter {num}** ({chapter['word_count']} words): {preview}...\n\n"
+        
+        prompt = f"""Analyze Chapter {self.chapter_num} for literary quality, narrative function, and revision opportunities.
 
-LITERARY INSPIRATIONS:
-{self.inspirations if self.inspirations else "None specified"}
+## Project Context
 
-CURRENT CHAPTER {self.chapter_num} CONTENT:
+### Synopsis
+{self.project_context.get('synopsis', 'Not available')[:800]}
+
+### Outline Excerpt
+{self.project_context.get('outline', 'Not available')[:800]}
+
+{context_summary}
+
+## Chapter to Analyze
+
 {self.current_chapter['content']}
 
-{context_text}
+## Literary Inspiration
 
-COMPREHENSIVE CHAPTER ANALYSIS:
+{self.inspirations[:1000] if self.inspirations else 'Not provided'}
 
-Analyze this chapter for:
+## Analysis Framework
 
-## STRUCTURAL ASSESSMENT
-- Chapter opening effectiveness
-- Scene transitions and flow
-- Pacing and rhythm
-- Chapter ending and hooks
+Evaluate this chapter on:
 
-## CHARACTER DEVELOPMENT
-- Character voice consistency
-- Dialogue authenticity and subtext
-- Character motivation clarity
-- Internal conflict and growth
+1. **Literary Quality**
+   - Prose sophistication and voice consistency
+   - Sensory detail and atmosphere
+   - Dialogue naturalism
+   - Metaphor and imagery effectiveness
 
-## LITERARY QUALITY
-- Prose style and sophistication
-- Show vs. tell balance
-- Sensory details and atmosphere
-- Thematic integration
+2. **Character Development**
+   - Character voice distinctiveness
+   - Psychological depth and motivation
+   - Character interactions and relationships
+   - Internal conflict expression
 
-## NARRATIVE FUNCTION
-- How this chapter serves the overall story
-- Plot advancement effectiveness
-- Connection to adjacent chapters
-- Missing story elements
+3. **Structural Elements**
+   - Scene structure and pacing
+   - Transitions and flow
+   - Information delivery
+   - Scene endings and hooks
 
-## CONSISTENCY CHECKING
-- Character names, ages, and traits consistency with context chapters
-- Timeline and chronological consistency
-- Plot details and factual consistency
-- Setting and world-building consistency
-- Dialogue voice and speech pattern consistency
+4. **Narrative Function**
+   - Plot advancement
+   - Theme development
+   - Emotional resonance
+   - Connection to adjacent chapters
 
-## EXPANSION OPPORTUNITIES
-- Scenes that need more development
-- Character moments that could be deeper
-- Atmospheric details that could be enhanced
-- Dialogue that could be more revealing
+5. **Specific Issues**
+   - Weak or generic passages
+   - Telling vs showing opportunities
+   - Missing sensory details
+   - Underdeveloped moments
+   - Rushed transitions
 
-## SPECIFIC REVISION RECOMMENDATIONS
-Provide concrete, actionable suggestions for:
-1. Structural improvements
-2. Character development enhancements  
-3. Literary quality upgrades
-4. Content expansion opportunities
-5. Consistency fixes with context chapters
-6. Technical fixes needed
-7. Write in the style of a blend of the authors and books mentioned in inspiration.md
-8. Do not use compound sentences or complex structures
-9. Use active voice
+## Current Metrics
 
-Current word count: {self.current_chapter['word_count']} words
+- **Current word count:** {self.current_chapter['word_count']}
+- **Target word count:** {self.target_word_count or int(self.current_chapter['word_count'] * 1.4)}
 
-Focus on actionable improvements that will enhance both literary quality and story effectiveness. Pay special attention to maintaining consistency with the provided context chapters."""
+Provide a detailed analysis that will guide meaningful expansion and literary enhancement."""
 
-        try:
-            def make_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("medium"),
-                    max_tokens=15000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-            
-            response = self._make_api_request_with_retry(make_request)
-            analysis = response.content[0].text
-            
-            # Save analysis
-            self._save_file(analysis, f"chapter_{self.chapter_num}_analysis.md")
-            
-            print("Chapter analysis complete")
-            return analysis
-            
-        except Exception as e:
-            print(f"Error analyzing chapter: {e}")
-            return f"Error in analysis: {e}"
+        def make_request():
+            return self.client.messages.create(
+                model=model,
+                max_tokens=4096,
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}]
+            )
+        
+        response = self._make_api_request_with_retry(make_request)
+        analysis = response.content[0].text
+        
+        self._save_file(analysis, f"chapter_{self.chapter_num}_analysis.md")
+        print(f"Analysis complete: {len(analysis)} characters")
+        print(f"Saved to: chapter_{self.chapter_num}_analysis.md")
+        
+        return analysis
     
     def create_revision_plan(self, analysis: str) -> str:
-        """Create a detailed revision plan based on analysis."""
-        print(f"Creating revision plan for Chapter {self.chapter_num}...")
+        """Create detailed revision plan OR use provided revision guide."""
+        print("\nStep 2: Creating revision plan...")
+        print("-" * 50)
         
-        # Check if plan already exists
-        plan_file = os.path.join(self.project_dir, f"chapter_{self.chapter_num}_revision_plan.md")
-        if os.path.exists(plan_file):
-            print("Using existing revision plan")
-            return self._safe_read_file(plan_file)
-        
-        target_words = self.target_word_count or int(self.current_chapter['word_count'] * 1.4)
-        
-        prompt = f"""Based on the chapter analysis, create a detailed revision plan for Chapter {self.chapter_num}.
+        # If we have a revision guide, use it as the plan
+        if self.revision_guide:
+            print("Using revision guide as revision plan")
+            plan = f"""# Chapter {self.chapter_num} Revision Plan
 
-CHAPTER ANALYSIS:
+## Source
+This revision plan is based on the provided revision guide:
+**{self.revision_guide_path}**
+
+---
+
+{self.revision_guide}
+
+---
+
+## Implementation Notes
+
+All revisions should follow the recommendations in the guide above.
+The guide provides specific, targeted feedback that should be applied during the revision process.
+"""
+            self._save_file(plan, f"chapter_{self.chapter_num}_revision_plan.md")
+            return plan
+        
+        # Otherwise, create a plan based on analysis
+        model = self._get_model_for_task("high")
+        
+        target_wc = self.target_word_count or int(self.current_chapter['word_count'] * 1.4)
+        
+        prompt = f"""Create a detailed, actionable revision plan for Chapter {self.chapter_num}.
+
+## Analysis Results
+
 {analysis}
 
-LITERARY INSPIRATIONS TO EMULATE:
-{self.inspirations}
+## Current State
 
-PROJECT CONTEXT:
-SYNOPSIS: {self.project_context.get('synopsis', '')}
-OUTLINE: {self.project_context.get('outline', '')}
-CHARACTERS: {self.project_context.get('characters', '')}
+- **Current word count:** {self.current_chapter['word_count']}
+- **Target word count:** {target_wc}
+- **Required expansion:** {target_wc - self.current_chapter['word_count']} words
 
-CURRENT WORD COUNT: {self.current_chapter['word_count']} words
-TARGET WORD COUNT: {target_words} words
+## Requirements for Revision Plan
 
-Create a STRUCTURED revision plan with SPECIFIC, IMPLEMENTABLE tasks:
+Create a comprehensive plan that:
 
-## TASK LIST
-Format each task as:
-TASK [number]: [Brief Title]
-- Type: [character_development/atmosphere/dialogue/structure/consistency]
-- Word Count: [approximate words to add]
-- Location: [where in chapter - be specific with quotes]
-- Implementation: [exactly what to add/change]
-- Verification: [keywords that must appear in revision]
+1. **Identifies Specific Passages** - Point to exact sections needing work
+2. **Provides Actionable Tasks** - Clear, executable revision instructions
+3. **Prioritizes Impact** - Focus on changes that most improve the chapter
+4. **Ensures Cohesion** - Maintain voice and narrative flow
+5. **Achieves Target Length** - Guide expansion to ~{target_wc} words
 
-Example format:
-TASK 1: Develop Keller's Character
-- Type: character_development
-- Word Count: 150-200 words
-- Location: After "Echo One in position" and before "Echo Two ready"
-- Implementation: Add flashback showing Henry and Keller's history, emphasizing Keller's dry humor and experience
-- Verification: Must include "twenty years", "Berlin", "humor" or "joke"
+## Plan Structure
 
-## EXPANSION STRATEGY
-List the top 5-7 specific tasks that will meaningfully expand the chapter.
+For each revision task, provide:
 
-## CONSISTENCY REQUIREMENTS
-List specific consistency fixes needed based on context chapters.
+### Task Title
+**Location:** Specific section/paragraph/dialogue
+**Current State:** What exists now
+**Revision Goal:** What should be achieved
+**Specific Actions:** Concrete steps to implement
+**Word Target:** Estimated word count change
+**Literary Rationale:** Why this improves the chapter
 
-## PRIORITY ORDER
-Number tasks in order of implementation priority.
+## Focus Areas
 
-Be EXTREMELY specific about:
-- Exact locations (quote the text before/after)
-- Exact content to add
-- Exact words/phrases to change
-- Measurable outcomes
+Based on the analysis, prioritize:
+- Weak passages needing strengthening
+- Telling that should be showing
+- Missing sensory/atmospheric details
+- Underdeveloped character moments
+- Rushed transitions
+- Opportunities for deeper psychological insight
 
-This plan will be implemented programmatically, so precision is essential."""
+Create a plan with 5-8 major revision tasks that will transform this chapter."""
 
-        try:
-            def make_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("medium"),
-                    max_tokens=10000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-            
-            response = self._make_api_request_with_retry(make_request)
-            plan = response.content[0].text
-            
-            # Save revision plan
-            self._save_file(plan, f"chapter_{self.chapter_num}_revision_plan.md")
-            
-            print("Revision plan created")
-            return plan
-            
-        except Exception as e:
-            print(f"Error creating revision plan: {e}")
-            return f"Error creating plan: {e}"
-    
-    def _parse_revision_tasks(self, revision_plan: str) -> List[Dict[str, Any]]:
-        """Parse the revision plan into structured tasks."""
-        tasks = []
+        def make_request():
+            return self.client.messages.create(
+                model=model,
+                max_tokens=4096,
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}]
+            )
         
-        # Pattern to match task blocks
-        task_pattern = r'TASK\s*(\d+):\s*([^\n]+)\n((?:[-•]\s*[^\n]+\n)+)'
-        matches = re.findall(task_pattern, revision_plan, re.MULTILINE)
+        response = self._make_api_request_with_retry(make_request)
+        revision_plan = response.content[0].text
         
-        for match in matches:
-            task_num, task_title, task_details = match
-            
-            task = {
-                'number': int(task_num),
-                'title': task_title.strip(),
-                'type': '',
-                'word_count': 0,
-                'location': '',
-                'implementation': '',
-                'verification': []
-            }
-            
-            # Parse task details
-            detail_lines = task_details.strip().split('\n')
-            for line in detail_lines:
-                line = line.strip().lstrip('-•').strip()
-                if line.startswith('Type:'):
-                    task['type'] = line.replace('Type:', '').strip()
-                elif line.startswith('Word Count:'):
-                    # Extract number from word count
-                    numbers = re.findall(r'\d+', line)
-                    if numbers:
-                        task['word_count'] = int(numbers[0])
-                elif line.startswith('Location:'):
-                    task['location'] = line.replace('Location:', '').strip()
-                elif line.startswith('Implementation:'):
-                    task['implementation'] = line.replace('Implementation:', '').strip()
-                elif line.startswith('Verification:'):
-                    task['verification'] = re.findall(r'"([^"]+)"', line)
-            
-            if task['title'] and task['type']:
-                tasks.append(task)
+        self._save_file(revision_plan, f"chapter_{self.chapter_num}_revision_plan.md")
+        print(f"Revision plan complete: {len(revision_plan)} characters")
+        print(f"Saved to: chapter_{self.chapter_num}_revision_plan.md")
         
-        # If structured parsing fails, try alternative patterns
-        if not tasks:
-            # Try numbered list pattern
-            numbered_pattern = r'^\d+\.\s*(.+?)(?=^\d+\.|^##|^Priority|$)'
-            matches = re.findall(numbered_pattern, revision_plan, re.MULTILINE | re.DOTALL)
-            
-            for i, match in enumerate(matches):
-                task = {
-                    'number': i + 1,
-                    'title': match.strip().split('\n')[0],
-                    'type': 'general',
-                    'word_count': 100,  # Default
-                    'location': '',
-                    'implementation': match.strip(),
-                    'verification': []
-                }
-                tasks.append(task)
-        
-        return tasks
-    
-    def _find_location_in_text(self, content: str, location_desc: str) -> Tuple[int, int]:
-        """Find the location in text based on description."""
-        # Extract quoted text from location description
-        quotes = re.findall(r'"([^"]+)"', location_desc)
-        
-        if quotes:
-            # Find the first quote in the content
-            for quote in quotes:
-                pos = content.find(quote)
-                if pos != -1:
-                    # Return position after the quote
-                    return pos + len(quote), pos + len(quote) + 1
-        
-        # Fallback: look for keywords
-        if 'after' in location_desc.lower():
-            after_match = re.search(r'after\s+"([^"]+)"', location_desc, re.IGNORECASE)
-            if after_match:
-                text = after_match.group(1)
-                pos = content.find(text)
-                if pos != -1:
-                    return pos + len(text), pos + len(text) + 1
-        
-        if 'before' in location_desc.lower():
-            before_match = re.search(r'before\s+"([^"]+)"', location_desc, re.IGNORECASE)
-            if before_match:
-                text = before_match.group(1)
-                pos = content.find(text)
-                if pos != -1:
-                    return pos, pos
-        
-        # Default to beginning if location not found
-        return 0, 0
-    
-    def _implement_single_task(self, content: str, task: Dict[str, Any], attempt: int = 0) -> str:
-        """Implement a single revision task."""
-        print(f"    Implementing: {task['title']}")
-        
-        # Find the location in the text
-        start_pos, end_pos = self._find_location_in_text(content, task['location'])
-        
-        # Extract context around the location
-        context_before = content[max(0, start_pos-500):start_pos]
-        context_after = content[end_pos:min(len(content), end_pos+500)]
-        
-        # Create a focused prompt for this specific task
-        prompt = f"""Implement this SPECIFIC revision task for Chapter {self.chapter_num}:
-
-TASK: {task['title']}
-TYPE: {task['type']}
-WORDS TO ADD: {task['word_count']}
-IMPLEMENTATION: {task['implementation']}
-
-CONTEXT BEFORE:
-...{context_before}
-
-[INSERT YOUR ADDITION HERE]
-
-CONTEXT AFTER:
-{context_after}...
-
-REQUIREMENTS:
-1. Add approximately {task['word_count']} words
-2. The addition must flow naturally with the existing text
-3. Follow the implementation instructions exactly
-4. Include these verification keywords: {', '.join(task['verification'])}
-
-Return ONLY the new content to be inserted, without any surrounding text or commentary."""
-
-        try:
-            def make_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("medium"),
-                    max_tokens=5000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-            
-            response = self._make_api_request_with_retry(make_request)
-            new_content = self._clean_ai_commentary(response.content[0].text)
-            
-            # Insert the new content into the chapter
-            revised = content[:start_pos] + "\n\n" + new_content + "\n\n" + content[end_pos:]
-            
-            return revised
-            
-        except Exception as e:
-            print(f"      Error implementing task: {e}")
-            return content
-    
-    def _verify_task_implementation(self, original: str, revised: str, task: Dict[str, Any]) -> bool:
-        """Verify that a task was successfully implemented."""
-        # Check word count increase
-        original_words = len(original.split())
-        revised_words = len(revised.split())
-        words_added = revised_words - original_words
-        
-        # Allow 20% variance in word count
-        target_words = task.get('word_count', 0)
-        if target_words > 0:
-            if words_added < target_words * 0.7:
-                return False
-        
-        # Check for verification keywords
-        for keyword in task.get('verification', []):
-            if keyword.lower() not in revised.lower():
-                return False
-        
-        # Basic check: content was actually modified
-        if original == revised:
-            return False
-        
-        return True
+        return revision_plan
     
     def revise_chapter(self, revision_plan: str) -> str:
-        """Revise the chapter based on the revision plan."""
-        print(f"Revising Chapter {self.chapter_num}...")
+        """Implement comprehensive chapter revision following the plan/guide."""
+        print("\nStep 3: Revising chapter...")
+        print("-" * 50)
         
-        original_word_count = self.current_chapter['word_count']
-        target_words = self.target_word_count or int(original_word_count * 1.4)
+        model = self._get_model_for_task("high")
         
-        # Parse tasks for reporting purposes (even though we don't implement them individually)
-        self.revision_tasks = self._parse_revision_tasks(revision_plan)
+        # Determine if we're using a guide or generated plan
+        plan_source = "revision guide" if self.revision_guide else "revision plan"
         
-        # Direct approach: Give the AI the chapter, the plan, and clear instructions
-        revised_content = self._revise_with_plan(revision_plan, target_words, original_word_count)
+        context_summary = ""
+        if self.adjacent_chapters:
+            context_summary = "\n\n## Context Chapters\n\n"
+            for num, chapter in sorted(self.adjacent_chapters.items()):
+                context_summary += f"### Chapter {num}\n{chapter['content'][:500]}...\n\n"
         
-        # Check if revision was successful
-        revised_word_count = len(revised_content.split())
+        prompt = f"""Revise Chapter {self.chapter_num} following the {plan_source} below.
+
+## {plan_source.title()}
+
+{revision_plan}
+
+## Current Chapter
+
+{self.current_chapter['content']}
+
+{context_summary}
+
+## Literary Guidance
+
+{self.inspirations[:1500] if self.inspirations else 'Focus on literary quality and narrative sophistication'}
+
+## Revision Instructions
+
+1. **Follow the {plan_source} closely** - Address all recommendations systematically
+2. **Maintain voice and tone** - Keep consistent with adjacent chapters
+3. **Expand thoughtfully** - Target ~{self.target_word_count or int(self.current_chapter['word_count'] * 1.4)} words
+4. **Enhance literary quality** - Improve prose, imagery, character depth
+5. **Preserve narrative flow** - Ensure smooth transitions and pacing
+6. **Keep all essential plot points** - Don't remove critical story elements
+
+## Quality Standards
+
+- **Prose:** Sophisticated, varied sentence structure, strong verbs, vivid imagery
+- **Character:** Distinctive voices, psychological depth, authentic reactions
+- **Atmosphere:** Rich sensory details, emotional resonance
+- **Pacing:** Varied rhythm, effective use of white space
+- **Dialogue:** Natural, revealing, purposeful
+
+{'## Specific Guidance from Revision Guide' if self.revision_guide else '## Implementation Approach'}
+
+{'Apply each recommendation from the guide thoughtfully, ensuring all feedback is addressed while maintaining the chapter\'s overall coherence and literary quality.' if self.revision_guide else 'Implement each task from the revision plan systematically, building a more sophisticated and engaging chapter.'}
+
+Provide the complete revised chapter, maintaining markdown formatting and chapter structure."""
+
+        def make_request():
+            # Use streaming to avoid 10-minute timeout
+            return self.client.messages.create(
+                model=model,
+                max_tokens=64000,  # Maximum for comprehensive revision
+                temperature=0.7,
+                messages=[{"role": "user", "content": prompt}],
+                stream=True  # Enable streaming
+            )
         
-        if revised_word_count < original_word_count:
-            print("  Warning: Chapter was shortened. Attempting expansion...")
-            revised_content = self._expand_chapter(revised_content, revision_plan, target_words)
-            revised_word_count = len(revised_content.split())
+        print(f"  Implementing comprehensive revision using {plan_source}...")
+        print(f"  (Using streaming to handle long revision - this may take several minutes)")
         
-        # For reporting: assume all tasks were attempted in the revision
-        if self.revision_tasks:
-            # Since we did a full revision following the plan, mark tasks as completed
-            # (We can't verify individual tasks, but we can report the attempt)
-            self.completed_tasks = self.revision_tasks
-            self.failed_tasks = []
+        # Collect streamed response
+        revised_content = ""
+        try:
+            response_stream = self._make_api_request_with_retry(make_request)
+            
+            for event in response_stream:
+                if event.type == "content_block_delta":
+                    if hasattr(event.delta, "text"):
+                        revised_content += event.delta.text
+                        # Show progress every 1000 characters
+                        if len(revised_content) % 1000 < 50:
+                            print(".", end="", flush=True)
+            
+            print()  # New line after progress dots
+            
+        except Exception as e:
+            print(f"\n  Error during streaming: {e}")
+            raise
         
-        print(f"Revision complete:")
-        print(f"  Original: {original_word_count} words")
-        print(f"  Revised: {revised_word_count} words")
-        print(f"  Expansion: {revised_word_count/original_word_count:.1f}x")
+        # Clean up any markdown artifacts
+        revised_content = revised_content.strip()
+        if revised_content.startswith('```markdown'):
+            revised_content = revised_content[11:].strip()
+        if revised_content.startswith('```'):
+            revised_content = revised_content[3:].strip()
+        if revised_content.endswith('```'):
+            revised_content = revised_content[:-3].strip()
         
-        if self.revision_tasks:
-            print(f"  Revision plan had {len(self.revision_tasks)} tasks")
+        revised_words = len(revised_content.split())
+        print(f"  Revision complete: {revised_words} words")
         
         return revised_content
     
-    def _revise_with_plan(self, revision_plan: str, target_words: int, original_word_count: int) -> str:
-        """Simple, direct revision following the plan exactly."""
-        
-        prompt = f"""You are a literary editor. Revise this chapter by implementing EVERY task in the revision plan below.
-
-REVISION PLAN (FOLLOW THIS EXACTLY):
-{revision_plan}
-
-ORIGINAL CHAPTER {self.chapter_num}:
-{self.current_chapter['content']}
-
-# REQUIREMENTS:
-
-## LITERARY FICTION AI-TO-HUMAN REVISION INSTRUCTIONS
-
-### OBJECTIVE:
-Transform AI-generated literary fiction into authentically human prose that scores below 70% on AI detection tools.
-
-### FUNDAMENTAL PRINCIPLE:
-Human literary fiction is messy, contradictory, and follows emotional rather than logical patterns. It privileges feeling over structure.
-
-### CORE TRANSFORMATION RULES:
-
-**1. DESTROY ALL METAPHORICAL CLICHÉS**
-- Delete: weight/burden pressing down, light filtering/bleeding, shadows dancing
-- Delete: humid air as emotional metaphor, houses as bodies/bones
-- Delete: perfect dawn/dusk scene settings
-- Replace with: unexpected sensory details, mundane observations, wrong comparisons
-
-**2. BREAK NARRATIVE SYMMETRY**
-- Never let endings echo beginnings
-- Start scenes 70% through an action
-- End them before resolution
-- Mix chronology without explaining
-- Let important moments happen off-page
-
-**3. CONTAMINATE THE PROSE**
-- Insert shopping lists, TV shows, brand names
-- Add misremembered quotes
-- Include wrong facts confidently stated
-- Reference things that don't exist in the story
-- Let characters think about completely unrelated things during crucial moments
-
-**4. DIALOGUE CHAOS**
-- People talk past each other
-- They respond to questions not asked
-- Important information comes out accidentally
-- Characters forget what they were saying mid-sentence
-- Real interruptions: "Hold on, is that my phone?" 
-
-**5. AUTHENTIC SCENE CONSTRUCTION**
-- Start with mundane physical discomfort
-- Interrupt emotional moments with bodily needs  
-- Mix profound and trivial without transition
-- End scenes on the wrong beat
-- Include details that undercut the mood
-
-### MANDATORY CHAOS ELEMENTS:
-
-**Every 1000 words must include:**
-- One scene that goes nowhere
-- A memory that's probably false
-- Someone's mind wandering to lunch/TV/sex during serious moments
-- A crucial plot point mentioned once and never again
-- Technical errors (wrong dates, ages, distances)
-
-**Paragraph Surgery:**
-- 30% single sentence paragraphs
-- 20% run-on stream-of-consciousness  
-- 10% fragments
-- Never maintain consistent paragraph rhythm
-
-### SPECIFIC LITERARY FICTION TECHNIQUES:
-
-**Emotional Authenticity:**
-- Characters feel the wrong emotions at key moments
-- Important revelations prompt thoughts about groceries
-- Traumatic memories interrupted by noticing a smell
-- Love scenes derailed by back pain or thinking about taxes
-
-**Time and Memory:**
-- "It was Tuesday. No, Thursday. Actually, who cares."
-- Mix up everyone's ages throughout
-- Remember events that haven't happened yet
-- Forget crucial plot points established earlier
-
-**Narrative Voice Destruction:**
-- Switch between pretentious and casual mid-paragraph
-- Use the wrong literary references
-- Misquote famous works
-- Let the narrator get bored with their own story
-
-### FORBIDDEN ELEMENTS (DELETE IMMEDIATELY):
-
-- Metaphors about weight, burden, pressure
-- Light doing anything but illuminating
-- Weather reflecting emotions
-- Houses/buildings as metaphors
-- Smooth transitions between scenes
-- Characters understanding their own motivations
-- Neat thematic callbacks
-- Graceful time shifts
-- Perfect dialogue attribution
-
-### AUTHENTIC MESS INJECTION:
-
-**Add Throughout:**
-- "Wait, I already told you this part"
-- "The thing about [random topic] is..."
-- Mid-scene: "I need to pee"
-- "This reminds me of that episode where..."
-- Specific prices from different decades mixed up
-- Pop culture references that don't fit the timeline
-
-**Literary Pretension Undermined:**
-- Start a beautiful metaphor, abandon it for lunch
-- High literary language interrupted by: "Shit, my parking meter"
-- Deep philosophy followed immediately by celebrity gossip
-- Profound moments ruined by phone notifications
-
-### SCENE-LEVEL CHAOS:
-
-**Opening Sentences:**
-- "The refrigerator was making that noise again."
-- "Two things: first, I lied about the thing with..."
-- "So anyway, after the—wait, I should explain..."
-
-**Closing Sentences:**
-- "But maybe I'm remembering it wrong."
-- "Or was that someone else's story?"
-- "The microwave beeped."
-
-### REVISION PROCESS:
-
-1. **First Pass:** Delete all beautiful writing
-2. **Second Pass:** Ruin all symmetry
-3. **Third Pass:** Add mundane interruptions
-4. **Fourth Pass:** Break chronology beyond repair
-5. **Final Pass:** Ensure nothing serves its purpose too well
-
-### SUCCESS METRICS:
-
-The revised text should feel like:
-- Someone telling a story at 2 AM after wine
-- A first draft written across multiple moods
-- Notes found in different notebooks
-- A story fighting against being told
-- Literature that forgot it was supposed to be literary
-
-The goal is fiction that captures how humans actually think and write: messily, distractedly, contradictorily, and with constant interruptions from life itself.
-
-IMPORTANT: 
-- The revision plan is your blueprint - follow it precisely
-- Do not skip any tasks from the plan
-- Add content where the plan specifies
-- Keep all original content unless the plan says to change it
-- Focus on expanding and enhancing, not shortening or summarizing
-
-Return ONLY the complete revised chapter text."""
-
-        try:
-            def make_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("complex"),
-                    max_tokens=60000,
-                    messages=[{"role": "user", "content": prompt}],
-                    stream=True
-                )
-            
-            stream = self._make_api_request_with_retry(make_request)
-            
-            # Collect streamed response
-            full_response = ""
-            for chunk in stream:
-                if chunk.type == "content_block_delta":
-                    if hasattr(chunk.delta, 'text'):
-                        full_response += chunk.delta.text
-                        print(".", end="", flush=True)
-            
-            print("\n  Revision complete")
-            return self._clean_ai_commentary(full_response)
-            
-        except Exception as e:
-            print(f"  Error in revision: {e}")
-            return self.current_chapter['content']
-    
-    def _expand_chapter(self, content: str, revision_plan: str, target_words: int) -> str:
-        """Expand chapter if it was shortened."""
-        current_words = len(content.split())
-        
-        prompt = f"""The chapter revision was incomplete. Expand it further by adding the missing elements from the revision plan.
-
-CURRENT REVISED CHAPTER ({current_words} words):
-{content}
-
-REVISION PLAN TASKS TO ENSURE ARE IMPLEMENTED:
-{revision_plan}
-
-TARGET: {target_words} words
-
-Add the missing content specified in the revision plan. Focus on:
-1. Character development sections
-2. Atmospheric descriptions  
-3. Dialogue expansions
-4. Any other specific additions mentioned in the plan
-
-Return the complete expanded chapter."""
-
-        try:
-            def make_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("medium"),
-                    max_tokens=60000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-            
-            response = self._make_api_request_with_retry(make_request)
-            return self._clean_ai_commentary(response.content[0].text)
-            
-        except Exception as e:
-            print(f"  Error in expansion: {e}")
-            return content
-    
-    def _final_polish_pass(self, content: str, revision_plan: str) -> str:
-        """Final pass to ensure coherence and smooth transitions."""
-        prompt = f"""Polish this revised chapter for coherence and flow.
-
-CHAPTER CONTENT:
-{content}
-
-ORIGINAL REVISION PLAN (for context):
-{revision_plan[:1000]}...
-
-POLISHING REQUIREMENTS:
-1. Ensure smooth transitions between original and new content
-2. Fix any repetitions or inconsistencies
-3. Maintain consistent voice and style throughout
-4. Ensure chapter flows naturally from beginning to end
-5. DO NOT remove or significantly alter the content that was added
-6. Focus only on connecting and smoothing the text
-7. Rewrite the chapter in the style of Jonathan Franzen
-8. Do not use compound sentences
-9. Use active voice
-
-Return the polished chapter."""
-
-        try:
-            def make_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("medium"),
-                    max_tokens=60000,
-                    messages=[{"role": "user", "content": prompt}]
-                )
-            
-            response = self._make_api_request_with_retry(make_request)
-            return self._clean_ai_commentary(response.content[0].text)
-            
-        except Exception as e:
-            print(f"    Warning: Polish pass failed: {e}")
-            return content
-    
-    def _attempt_full_revision_fallback(self, revision_plan: str) -> str:
-        """Fallback to full revision if task parsing fails."""
-        target_words = self.target_word_count or int(self.current_chapter['word_count'] * 1.4)
-        
-        prompt = f"""Revise Chapter {self.chapter_num} following this revision plan EXACTLY.
-
-REVISION PLAN:
-{revision_plan}
-
-CURRENT CHAPTER:
-{self.current_chapter['content']}
-
-TARGET WORD COUNT: {target_words} words
-
-Implement EVERY recommendation in the revision plan. Return only the complete revised chapter."""
-
-        try:
-            def make_request():
-                return self.client.messages.create(
-                    model=self._get_model_for_task("complex"),
-                    max_tokens=60000,
-                    messages=[{"role": "user", "content": prompt}],
-                    stream=True
-                )
-            
-            stream = self._make_api_request_with_retry(make_request)
-            
-            full_response = ""
-            for chunk in stream:
-                if chunk.type == "content_block_delta":
-                    if hasattr(chunk.delta, 'text'):
-                        full_response += chunk.delta.text
-                        print(".", end="", flush=True)
-            
-            print()
-            return self._clean_ai_commentary(full_response)
-            
-        except Exception as e:
-            print(f"Error in revision: {e}")
-            return self.current_chapter['content']
-    
     def save_revised_chapter(self, revised_content: str) -> str:
-        """Save the revised chapter to file."""
-        # Create revised filename
-        original_path = self.current_chapter['file_path']
-        filename = os.path.basename(original_path)
-        base_name = os.path.splitext(filename)[0]
-        revised_filename = f"{base_name}_revised.md"
+        """Save the revised chapter to chapters/revised/ subdirectory."""
+        print("\nStep 4: Saving revised chapter...")
+        print("-" * 50)
         
-        # Save to revised directory
-        revised_dir = os.path.join(self.project_dir, "revised")
+        # Save revised files to chapters/revised/
+        revised_dir = os.path.join(self.project_dir, 'chapters', 'revised')
+        os.makedirs(revised_dir, exist_ok=True)
+        
+        # Generate filename
+        original_filename = self.current_chapter['filename']
+        base_name = os.path.splitext(original_filename)[0]
+        revised_filename = f"{base_name}_revised.md"
         revised_path = os.path.join(revised_dir, revised_filename)
         
-        if self._safe_write_file(revised_path, revised_content):
-            print(f"Saved revised chapter: {revised_path}")
+        # Save file
+        success = self._safe_write_file(revised_path, revised_content)
+        
+        if success:
+            print(f"Saved revised chapter to: {revised_path}")
             return revised_path
         else:
-            print(f"Error saving revised chapter")
-            return ""
+            raise Exception("Failed to save revised chapter")
     
-    def _clean_ai_commentary(self, text: str) -> str:
-        """Remove any AI commentary from text."""
-        patterns = [
-            r'\[.*?\]',
-            r'Would you like.*?\?',
-            r'I can .*?\.',
-            r'Note:.*?\.',
-            r'Commentary:.*?\.'
-        ]
-        
-        cleaned = text
-        for pattern in patterns:
-            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE | re.DOTALL)
-        
-        return re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned).strip()
-    
-    def _save_file(self, content: str, filename: str) -> bool:
-        """Save content to file with timestamp header."""
-        output_path = os.path.join(self.project_dir, filename)
-        
-        file_content = f"# {filename.replace('_', ' ').replace('.md', '').title()}\n\n"
-        file_content += f"**Generated:** {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        file_content += f"**Chapter:** {self.chapter_num}\n\n"
-        file_content += "---\n\n"
-        file_content += content
-        
-        success = self._safe_write_file(output_path, file_content)
-        if success:
-            print(f"  Saved: {filename}")
-        return success
-    
-    def generate_summary_report(self, analysis: str, revision_plan: str, original_words: int, revised_words: int) -> str:
+    def generate_summary_report(self, analysis: str, revision_plan: str, 
+                                original_words: int, revised_words: int) -> str:
         """Generate a summary report of the revision process."""
+        print("\nStep 5: Generating summary report...")
+        print("-" * 50)
         
-        # Create task summary
-        task_summary = ""
-        if self.revision_tasks:
-            task_summary = f"""
-### Revision Plan Implementation
-
-The revision plan contained {len(self.revision_tasks)} tasks:
-"""
-            for i, task in enumerate(self.revision_tasks, 1):
-                task_summary += f"{i}. {task.get('title', 'Task ' + str(i))}\n"
-            
-            task_summary += f"""
-All tasks were addressed in the comprehensive revision following the plan.
-"""
-        else:
-            task_summary = """
-### Revision Plan Implementation
-
-The revision was performed following the complete revision plan as provided.
-"""
+        # Determine source type
+        plan_source = "Revision Guide" if self.revision_guide else "Generated Revision Plan"
         
         report = f"""# Chapter {self.chapter_num} Revision Report
 
@@ -1093,40 +594,39 @@ The revision was performed following the complete revision plan as provided.
 **Original Words:** {original_words:,}
 **Revised Words:** {revised_words:,}
 **Expansion:** {revised_words/original_words:.1f}x
+**Revision Source:** {plan_source}
 
 ## Process Summary
 
 ### 1. Chapter Analysis
-Comprehensive analysis identified key areas for improvement in structure, character development, literary quality, and narrative function.
+{'Revision guide provided - analysis step skipped' if self.revision_guide else 'Comprehensive analysis identified key areas for improvement in structure, character development, literary quality, and narrative function.'}
 
-### 2. Revision Plan Creation
-Detailed revision plan created with specific, actionable tasks for meaningful expansion and literary enhancement.
+### 2. Revision Planning
+{'Used provided revision guide from: ' + self.revision_guide_path if self.revision_guide else 'Detailed revision plan created with specific, actionable tasks for meaningful expansion and literary enhancement.'}
 
 ### 3. Chapter Revision
-Implemented comprehensive revision following the complete revision plan.
-
-{task_summary}
+Implemented comprehensive revision following the {plan_source.lower()}.
 
 ## Key Improvements Made
 
-### Analysis Highlights
-{analysis[:500]}...
+### {'Revision Guide Highlights' if self.revision_guide else 'Analysis Highlights'}
+{(self.revision_guide if self.revision_guide else analysis)[:500]}...
 
 ### Revision Strategy
 {revision_plan[:500]}...
 
 ## Files Created
 
-- `chapter_{self.chapter_num}_analysis.md` - Detailed chapter analysis
-- `chapter_{self.chapter_num}_revision_plan.md` - Comprehensive revision plan
-- `revised/[chapter_file]_revised.md` - Enhanced chapter version
+- {'`chapter_' + str(self.chapter_num) + '_analysis.md`' if not self.revision_guide else '*(Analysis skipped - guide provided)*'} - Chapter analysis
+- `chapter_{self.chapter_num}_revision_plan.md` - {'Revision guide' if self.revision_guide else 'Comprehensive revision plan'}
+- `revised/{self.current_chapter['filename'].replace('.md', '_revised.md')}` - Enhanced chapter version
 - `chapter_{self.chapter_num}_revision_report.md` - This summary report
 
 ## Results
 
 The chapter has been significantly enhanced with:
 - Expanded word count ({original_words:,} → {revised_words:,} words)
-- Comprehensive implementation of revision plan
+- Comprehensive implementation of {'revision guide recommendations' if self.revision_guide else 'revision plan'}
 - Enhanced literary quality and sophistication
 - Better narrative flow and pacing
 
@@ -1135,32 +635,42 @@ The chapter has been significantly enhanced with:
 - Target expansion: {self.target_word_count or int(original_words * 1.4):,} words
 - Achieved: {revised_words:,} words
 - Expansion ratio: {revised_words/original_words:.2f}x
+{'- Met target: ' + ('Yes ✓' if revised_words >= (self.target_word_count or int(original_words * 1.4)) else 'Close') if self.target_word_count else ''}
 
 ## Next Steps
 
 The revised chapter is ready for integration into the full manuscript. Review the implemented changes to ensure they align with your vision for the chapter.
+
+{'## Revision Guide Notes' if self.revision_guide else ''}
+{'The revision was guided by specific recommendations from the revision guide. All major points from the guide were addressed in the revision.' if self.revision_guide else ''}
 """
         
         self._save_file(report, f"chapter_{self.chapter_num}_revision_report.md")
+        print(f"Report saved to: chapter_{self.chapter_num}_revision_report.md")
         return report
 
 def main():
     """Main function for command-line usage."""
     parser = argparse.ArgumentParser(
-        description="Single Chapter Reviser - Analyze, plan, and revise individual chapters",
+        description="Single Chapter Reviser - Analyze, plan, and revise individual chapters with optional revision guides",
         epilog="""
 Examples:
-  # Revise chapter 1 with default expansion
-  python single_chapter_reviser.py glasshouse --chapter 1
+  # Revise chapter 1 with revision guide (if exists)
+  python single_chapter_reviser_guided.py myproject --chapter 1
   
   # Revise chapter 3 to specific word count
-  python single_chapter_reviser.py glasshouse --chapter 3 --target-words 3000
+  python single_chapter_reviser_guided.py myproject --chapter 3 --target-words 3000
   
   # Revise with specific chapters for consistency context
-  python single_chapter_reviser.py glasshouse --chapter 5 --context-chapters 1,3,4 --target-words 2500
+  python single_chapter_reviser_guided.py myproject --chapter 5 --context-chapters 1,3,4 --target-words 2500
   
-  # Cost-optimized revision with context
-  python single_chapter_reviser.py glasshouse --chapter 8 --context-chapters 2,6,7 --cost-optimize --target-words 2500
+  # Analysis only (skip revision)
+  python single_chapter_reviser_guided.py myproject --chapter 8 --analysis-only
+
+Revision Guide:
+  Place revision guides in: myproject/revision_guides/
+  Format: 01_chapter_01_guide.md (for chapter 1)
+  If guide exists, it will be used instead of generating a revision plan.
         """
     )
     parser.add_argument(
@@ -1204,7 +714,7 @@ Examples:
         except:
             pass
     
-    # Parse context chapters - define this variable immediately after args parsing
+    # Parse context chapters
     context_chapters = None
     if hasattr(args, 'context_chapters') and args.context_chapters:
         try:
@@ -1240,15 +750,15 @@ Examples:
         print(f"Starting single chapter revision for Chapter {args.chapter}")
         print("="*50)
         
-        # Load project and chapter - context_chapters should now be in scope
+        # Load project and chapter
         reviser.load_project_context(args.project_dir, args.chapter, context_chapters)
         
         original_words = reviser.current_chapter['word_count']
         
-        # Step 1: Analyze chapter
+        # Step 1: Analyze chapter (skipped if guide exists)
         analysis = reviser.analyze_chapter()
         
-        # Step 2: Create revision plan
+        # Step 2: Create revision plan (uses guide if exists)
         revision_plan = reviser.create_revision_plan(analysis)
         
         if args.analysis_only:
@@ -1274,12 +784,16 @@ Examples:
         print(f"Revised: {revised_words:,} words")
         print(f"Expansion: {revised_words/original_words:.1f}x")
         print(f"Saved to: {revised_path}")
+        if reviser.revision_guide:
+            print(f"Used revision guide: {reviser.revision_guide_path}")
         print(f"\nCheck chapter_{args.chapter}_revision_report.md for full summary")
         
         return 0
         
     except Exception as e:
         print(f"Error during chapter revision: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 if __name__ == "__main__":

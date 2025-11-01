@@ -13,6 +13,7 @@ eggs/
 lib/
 lib64/
 parts/
+my_novel/
 sdist/
 var/
 wheels/
@@ -70,8 +71,11 @@ money/
 wombs/
 daniels/
 junkmiles/
+my_novel/project.json
 manuscripts/draft_*
 *faber*.*
-
+the_bridgehead/*
+my_novel/*
+novelcraft/ai/story_bible.md
 # API keys
 .anthropic_key

@@ -178,18 +178,122 @@
         "created_at": "2025-10-27T09:43:18.049278",
         "modified_at": "2025-10-27T09:43:18.051282",
         "file_modified_at": "2025-10-27T09:43:18.051283"
+      },
+      "14": {
+        "number": 14,
+        "title": "Chapter 14",
+        "file_path": "chapters\\14_chapter_14.md",
+        "summary": "",
+        "notes": "",
+        "scenes": {},
+        "word_count": 2956,
+        "status": "draft",
+        "created_at": "2025-10-27T09:49:09.313516",
+        "modified_at": "2025-10-27T09:49:09.314517",
+        "file_modified_at": "2025-10-27T09:49:09.314517"
+      },
+      "15": {
+        "number": 15,
+        "title": "Chapter 15",
+        "file_path": "chapters\\15_chapter_15.md",
+        "summary": "",
+        "notes": "",
+        "scenes": {},
+        "word_count": 1779,
+        "status": "draft",
+        "created_at": "2025-10-27T10:11:01.474809",
+        "modified_at": "2025-10-27T10:11:01.475811",
+        "file_modified_at": "2025-10-27T10:11:01.475811"
+      },
+      "16": {
+        "number": 16,
+        "title": "Chapter 16",
+        "file_path": "chapters\\16_chapter_16.md",
+        "summary": "",
+        "notes": "",
+        "scenes": {},
+        "word_count": 3178,
+        "status": "draft",
+        "created_at": "2025-10-27T10:21:26.260043",
+        "modified_at": "2025-10-27T10:21:26.261041",
+        "file_modified_at": "2025-10-27T10:21:26.261042"
+      },
+      "17": {
+        "number": 17,
+        "title": "Chapter 17",
+        "file_path": "chapters\\17_chapter_17.md",
+        "summary": "",
+        "notes": "",
+        "scenes": {},
+        "word_count": 3153,
+        "status": "draft",
+        "created_at": "2025-10-27T10:27:08.516317",
+        "modified_at": "2025-10-27T10:27:08.518321",
+        "file_modified_at": "2025-10-27T10:27:08.518321"
+      },
+      "18": {
+        "number": 18,
+        "title": "Chapter 18",
+        "file_path": "chapters\\18_chapter_18.md",
+        "summary": "",
+        "notes": "",
+        "scenes": {},
+        "word_count": 2408,
+        "status": "draft",
+        "created_at": "2025-10-27T10:37:33.861611",
+        "modified_at": "2025-10-27T10:37:33.862605",
+        "file_modified_at": "2025-10-27T10:37:33.862605"
+      },
+      "19": {
+        "number": 19,
+        "title": "Chapter 19",
+        "file_path": "chapters\\19_chapter_19.md",
+        "summary": "",
+        "notes": "",
+        "scenes": {},
+        "word_count": 2923,
+        "status": "draft",
+        "created_at": "2025-10-27T10:41:37.281785",
+        "modified_at": "2025-10-27T10:41:37.283786",
+        "file_modified_at": "2025-10-27T10:41:37.283786"
+      },
+      "20": {
+        "number": 20,
+        "title": "Chapter 20",
+        "file_path": "chapters\\20_chapter_20.md",
+        "summary": "",
+        "notes": "",
+        "scenes": {},
+        "word_count": 1716,
+        "status": "draft",
+        "created_at": "2025-10-27T10:59:19.868328",
+        "modified_at": "2025-10-27T10:59:19.869329",
+        "file_modified_at": "2025-10-27T10:59:19.869330"
+      },
+      "21": {
+        "number": 21,
+        "title": "Chapter 21",
+        "file_path": "chapters\\21_chapter_21.md",
+        "summary": "",
+        "notes": "",
+        "scenes": {},
+        "word_count": 2875,
+        "status": "draft",
+        "created_at": "2025-10-27T11:03:24.692528",
+        "modified_at": "2025-10-27T11:03:24.694527",
+        "file_modified_at": "2025-10-27T11:03:24.694527"
       }
     },
     "outline": "## ACT I — Burn Notice (London)\n\n- Thomas Reed, Michael Armitage’s mentor inside the Joint Intelligence Organisation, dies on the London Underground. Declared suicide within hours.\n- Michael is tasked with sanitising Reed’s files.\n- He discovers evidence that a private contractor, Greyfriar Analytics, is injecting “imminent terror threat assessments” straight into Cabinet Office briefings.\n- He quietly raises a red flag.\n- His credentials are immediately revoked. An internal \"containment\" classification marks him as a hostile leak.\n- MI6 officer Sophia Malik pulls Michael out moments before an off-books arrest team arrives at his flat.\n\n**Inciting Incident:** Michael realises he’s being framed as the leak that will justify a new internal security crackdown.\n\n**Act I End:** Michael is now officially rogue, whether he wants to be or not.\n\n---\n\n## ACT II — The Chase (Brussels → Tangier → Dubai leads)\n\n- Michael learns Sophia was burned in Istanbul after an MI6 extraction plan was allegedly “modelled for risk” by a third-party partner… which she now recognises as Greyfriar.\n- They meet Lena Kovács in Brussels, who has quietly been tracking Greyfriar contracts as an EU corruption story.\n- They uncover:\n  - Greyfriar manufactures synthetic extremist “chatter,” then routes it through offshore infrastructure to make it look like organic traffic.\n  - UK crisis teams receive that “chatter” as proof of imminent attack, then authorise heightened posture and draft emergency legislation.\n  - The legislation is pre-written. The threat is reverse engineered to justify it.\n- In Tangier, a telecom engineer provides packet logs proving the laundering of fake signals through North African and Middle Eastern relays to make them look like Islamist traffic.\n- He is killed minutes later and framed as a random street robbery.\n\n**Midpoint (Point of No Return):** They obtain audio of Sir Julian Hargreaves telling private security investors in Dubai that within days, London will “demonstrate operational readiness with full civilian compliance,” after which “regulatory stability is assured.” Translation: the state of exception will become the state.\n\n---\n\n## ACT III — Exile (Back to the UK, under attack)\n\n- Michael, Sophia, and Lena are each publicly discredited:\n  - Michael painted as an ideologically-motivated leaker in contact with “extremist foreigners.”\n  - Sophia painted as a reckless officer whose incompetence got assets killed.\n  - Lena painted as a hostile information actor laundering Russian narratives.\n- Family pressure and reputational warfare isolate Michael.\n- Sophia’s passport is quietly revoked.\n- Lena’s editor warns her: publish this and you’re persona non grata in the UK and half of Brussels.\n- Michael suggests going internal, handing evidence to MI5 and trusting oversight.\n- Sophia: “Oversight is now a product line.”\n\n**All Is Lost:** They understand they cannot clear their names privately. If they don’t go public, the story dies and the new powers become permanent.\n\n**Act III End:** They decide to blow it open in real time, during the Canary Wharf “exercise.”\n\n---\n\n## ACT IV — Return / Detonation (Canary Wharf)\n\n- Canary Wharf is locked down under the guise of a live counter-terror readiness drill.\n- Armed police, military vehicles on civilian streets, Jubilee line suspended, phone networks throttled.\n- Sir Julian prepares to announce that this was an emergency response to “credible chatter,” proof that new national security legislation must be enacted immediately.\n- Lena pushes a live investigative package: procurement trails, offshore laundering, Dubai audio.\n- Michael and Sophia breach the Wharf command floor and stream dashboards that show the exercise timeline was scripted days in advance — including the quotes ministers will give to the press.\n- The country polarises instantly. Protest erupts. Parliament is paralysed.\n- Sophia is detained as a domestic security threat.\n- Michael escapes custody with the last physical copy of Reed’s raw ingest logs — evidence that can still survive legal attack.\n- Lena publishes under her own name and refuses witness anonymity.\n\n**End State / Sequel Hook:**\n\n- The bill stalls, publicly toxic.\n- Hargreaves is forced into “medical leave,” not prison.\n- Greyfriar rebrands overnight under a new shell.\n- Michael disappears, branded traitor to some, patriot to others.\n- Sophia sits in a black site on British soil that doesn’t officially exist.\n- Lena becomes the story — and now has to survive being the story.\n",
     "themes": [],
     "tags": [],
-    "word_count": 29098,
+    "word_count": 50086,
     "created_at": "2025-10-26T20:28:54.790524",
-    "modified_at": "2025-10-27T09:43:18.054281"
+    "modified_at": "2025-10-27T11:03:24.699526"
   },
   "characters": {
     "characters": {}
   },
   "created_at": "2025-10-26T20:28:54.790524",
-  "modified_at": "2025-10-27T09:43:18.054281"
+  "modified_at": "2025-10-27T11:03:24.699526"
 }
