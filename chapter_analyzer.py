@@ -45,7 +45,7 @@ class Config:
     retry_delay: float = 2.0  # Increased default delay
 
     # Model Configuration
-    model: str = "claude-3-opus-20240229"
+    model: str = "claude-opus-4-20250514"
 
     # Token Limits for different report sections
     max_tokens: Dict[str, int] = field(default_factory=lambda: {
